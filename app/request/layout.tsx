@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { RequestProvider } from "@/context/RequestContext";
 import AppBar from "@/components/request/AppBar";
 import FuncBar from "@/components/request/FuncBar";
@@ -12,7 +13,9 @@ export default function RequestLayout({
     <RequestProvider>
       <div className="flex h-screen w-screen overflow-hidden bg-[var(--color-page-bg)]">
         <AppBar />
-        <FuncBar />
+        <Suspense fallback={null}>
+          <FuncBar />
+        </Suspense>
         <main className="h-full min-w-0 flex-1 overflow-y-auto">{children}</main>
         <RequestModalHost />
       </div>

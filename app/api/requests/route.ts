@@ -53,6 +53,33 @@ export async function GET(request: Request) {
       return NextResponse.json({ requests });
     }
 
+    // Ba scope dưới đây phục vụ màn hình danh sách+chi tiết kiểu Base
+    // ("Gửi đến tôi"/"Đang theo dõi"/"Tất cả") — không lọc theo Firestore
+    // được vì approversSnapshot/followers là mảng object lồng, nên lấy hết
+    // rồi lọc bằng code (chấp nhận được với quy mô công ty hiện tại).
+    if (scope === "sent-to-me" || scope === "following" || scope === "all") {
+      const snap = await adminDb.collection("requests").get();
+      const all = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }) as RequestInstance);
+
+      const isMine = (r: RequestInstance) => r.submittedBy.uid === session.uid;
+      const isSentToMe = (r: RequestInstance) =>
+        r.status !== "draft" && r.approversSnapshot.some((a) => a.id === session.uid);
+      const isFollowing = (r: RequestInstance) =>
+        r.status !== "draft" && r.followers.some((f) => f.id === session.uid);
+
+      const filterFn =
+        scope === "sent-to-me"
+          ? isSentToMe
+          : scope === "following"
+            ? isFollowing
+            : (r: RequestInstance) => isMine(r) || isSentToMe(r) || isFollowing(r);
+
+      const requests = all
+        .filter(filterFn)
+        .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+      return NextResponse.json({ requests });
+    }
+
     return NextResponse.json({ error: "scope không hợp lệ." }, { status: 400 });
   } catch (error) {
     return apiErrorResponse(error);
@@ -159,6 +186,7 @@ export async function POST(request: Request) {
       values,
       submittedBy: { uid: session.uid, email: session.email, name: session.name },
       submittedAt: nowIso,
+      updatedAt: nowIso,
       approvalFlow,
       approversSnapshot,
       approvers: isDraft ? [] : buildInitialApprovers(approversSnapshot),

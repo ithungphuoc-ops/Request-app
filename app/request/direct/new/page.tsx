@@ -111,7 +111,7 @@ function DirectRequestForm() {
         const body = await res.json().catch(() => ({}) as { error?: string });
         throw new Error(body.error ?? "Không thể gửi đề xuất.");
       }
-      router.push("/request/my-requests");
+      router.push("/request/list?scope=mine");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Có lỗi xảy ra.");
     } finally {

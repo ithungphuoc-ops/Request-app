@@ -1,16 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   ChevronLeft,
+  Eye,
   FileClock,
   History,
-  Home,
   Inbox,
   Layers,
   Plus,
-  Search,
   Send,
   Settings,
   Star,
@@ -18,31 +17,43 @@ import {
 } from "lucide-react";
 import { useRequestContext } from "@/context/RequestContext";
 import { useCurrentSession } from "@/lib/useCurrentSession";
+import type { RequestListScope } from "@/lib/types";
 
-const staticLinks = [
-  { key: "home", label: "Trang chủ Request", href: "/request", icon: Home, exact: true, adminOnly: false },
-  { key: "my-requests", label: "Đề xuất của tôi", href: "/request/my-requests", icon: Send, adminOnly: false },
-  { key: "inbox", label: "Chờ tôi duyệt", href: "/request/inbox", icon: Inbox, adminOnly: false },
-  { key: "search", label: "Tìm kiếm đề xuất", href: "/request/search", icon: Search, adminOnly: false },
-  { key: "all-groups", label: "Tất cả nhóm đề xuất (Tùy chỉnh)", href: "/request/groups", icon: Settings, adminOnly: true },
-  { key: "system-proposals", label: "Tất cả đề xuất hệ thống", href: "/request/system-proposals", icon: FileClock, adminOnly: true },
-  { key: "webhook-history", label: "Lịch sử Webhook", href: "/request/webhook-history", icon: Webhook, adminOnly: true },
-  { key: "webhook-trace", label: "Dấu vết Webhook", href: "/request/webhook-trace", icon: Webhook, adminOnly: true },
-  { key: "group-history", label: "Lịch sử chỉnh sửa nhóm", href: "/request/group-history", icon: History, adminOnly: true },
+const filterLinks: { key: RequestListScope; label: string; icon: typeof Inbox }[] = [
+  { key: "all", label: "Tất cả", icon: Layers },
+  { key: "sent-to-me", label: "Gửi đến tôi", icon: Inbox },
+  { key: "mine", label: "Tôi gửi đi", icon: Send },
+  { key: "following", label: "Đang theo dõi", icon: Eye },
 ];
+
+const adminLinks = [
+  { key: "all-groups", label: "Tất cả nhóm đề xuất (Tùy chỉnh)", href: "/request/groups", icon: Settings },
+  { key: "system-proposals", label: "Tất cả đề xuất hệ thống", href: "/request/system-proposals", icon: FileClock },
+  { key: "webhook-history", label: "Lịch sử Webhook", href: "/request/webhook-history", icon: Webhook },
+  { key: "webhook-trace", label: "Dấu vết Webhook", href: "/request/webhook-trace", icon: Webhook },
+  { key: "group-history", label: "Lịch sử chỉnh sửa nhóm", href: "/request/group-history", icon: History },
+];
+
+const roleLabels: Record<string, string> = {
+  owner: "Chủ sở hữu",
+  admin: "Quản trị viên",
+  manager: "Quản lý",
+  employee: "Nhân viên",
+};
 
 export default function FuncBar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentScope = searchParams.get("scope") ?? "all";
   const { categoryGroups, openCreateGroup } = useRequestContext();
-  const { isAdmin } = useCurrentSession();
+  const { session, isAdmin } = useCurrentSession();
 
   const pinnedGroups = categoryGroups.flatMap((cat) => cat.groups).filter((g) => g.pinned);
-  const visibleLinks = staticLinks.filter((item) => isAdmin || !item.adminOnly);
 
   return (
     <nav
       aria-label="Thanh chức năng Base Request"
-      className="flex h-full w-[165px] shrink-0 flex-col overflow-y-auto border-r border-[var(--color-funcbar-border)] bg-[var(--color-funcbar-bg)] py-3"
+      className="flex h-full w-[200px] shrink-0 flex-col overflow-y-auto border-r border-[var(--color-funcbar-border)] bg-[var(--color-funcbar-bg)] py-3"
     >
       <Link
         href="/"
@@ -52,13 +63,27 @@ export default function FuncBar() {
         Trang chủ
       </Link>
 
+      {session && (
+        <div className="mx-2 mb-2 flex items-center gap-2 rounded px-2 py-2">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-action-blue)] text-[12px] font-semibold text-white">
+            {session.name.trim().charAt(0).toUpperCase() || "?"}
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-[13px] font-medium text-gray-800">{session.name}</p>
+            <p className="truncate text-[11px] text-gray-400">
+              {roleLabels[session.role] ?? session.role}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-0.5 px-2">
-        {visibleLinks.map((item) => {
-          const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href);
+        {filterLinks.map((item) => {
+          const isActive = pathname === "/request/list" && currentScope === item.key;
           return (
             <Link
               key={item.key}
-              href={item.href}
+              href={`/request/list?scope=${item.key}`}
               className={`relative flex items-center gap-2 rounded px-2 py-2 text-[13px] ${
                 isActive
                   ? "bg-[var(--color-funcbar-active-bg)] font-medium text-[var(--color-action-blue)]"
@@ -77,6 +102,31 @@ export default function FuncBar() {
 
       {isAdmin && (
         <>
+          <div className="mx-2 my-3 border-t border-[var(--color-funcbar-border)]" />
+
+          <div className="flex flex-col gap-0.5 px-2">
+            {adminLinks.map((item) => {
+              const isActive = pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.key}
+                  href={item.href}
+                  className={`relative flex items-center gap-2 rounded px-2 py-2 text-[13px] ${
+                    isActive
+                      ? "bg-[var(--color-funcbar-active-bg)] font-medium text-[var(--color-action-blue)]"
+                      : "text-gray-700 hover:bg-[var(--color-funcbar-active-bg)]"
+                  }`}
+                >
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-[var(--color-action-blue)]" />
+                  )}
+                  <item.icon size={15} className="shrink-0" />
+                  <span className="truncate">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+
           <div className="mx-2 my-3 border-t border-[var(--color-funcbar-border)]" />
 
           <div className="flex flex-col gap-1.5 px-2">

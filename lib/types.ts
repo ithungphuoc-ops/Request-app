@@ -139,6 +139,8 @@ export interface RequestInstance {
   values: Record<string, unknown>;
   submittedBy: RequestSubmitter;
   submittedAt: string;
+  /** Cập nhật mỗi lần sửa nháp, gửi chính thức, hoặc có quyết định duyệt/chuyển tiếp. */
+  updatedAt: string;
   approvalFlow: ApprovalFlowType;
   /** Thông tin hiển thị (tên/avatar) của người duyệt, cùng thứ tự với `approvers`. */
   approversSnapshot: TaggedUser[];
@@ -172,6 +174,8 @@ export type PermissionAssignmentStatus =
   | "error";
 
 export type ListLoadStatus = "loading" | "loaded" | "empty" | "error";
+
+export type RequestListScope = "all" | "sent-to-me" | "mine" | "following";
 
 export interface AuditEntry {
   id: string;

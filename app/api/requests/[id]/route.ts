@@ -97,14 +97,16 @@ export async function PATCH(
     }
 
     if (!wantsSubmit) {
+      const updatedAt = new Date().toISOString();
       const ref = adminDb.collection("requests").doc(id);
-      await ref.update({ values, groupNameSnapshot, approversSnapshot, followers });
+      await ref.update({ values, groupNameSnapshot, approversSnapshot, followers, updatedAt });
       const updated: RequestInstance = {
         ...found,
         values,
         groupNameSnapshot,
         approversSnapshot,
         followers,
+        updatedAt,
       };
       return NextResponse.json({ request: updated });
     }
@@ -144,6 +146,7 @@ export async function PATCH(
         followers: group.followers,
         status: "pending" as const,
         deadlineAt,
+        updatedAt: nowIso,
         history: [...found.history, { at: nowIso, actor: session.name, action: "Đã gửi đề xuất" }],
       };
       await ref.update(patch);
@@ -170,6 +173,7 @@ export async function PATCH(
       followers,
       status: "pending" as const,
       deadlineAt: null,
+      updatedAt: nowIso,
       history: [...found.history, { at: nowIso, actor: session.name, action: "Đã gửi đề xuất" }],
     };
     await ref.update(patch);

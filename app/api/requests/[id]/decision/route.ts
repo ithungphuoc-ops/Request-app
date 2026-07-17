@@ -67,8 +67,14 @@ export async function POST(
           note: body.note,
         },
       ];
-      await ref.update({ approvers, approversSnapshot, history });
-      const updated: RequestInstance = { ...current, approvers, approversSnapshot, history };
+      await ref.update({ approvers, approversSnapshot, history, updatedAt: nowIso });
+      const updated: RequestInstance = {
+        ...current,
+        approvers,
+        approversSnapshot,
+        history,
+        updatedAt: nowIso,
+      };
       return NextResponse.json({ request: updated });
     }
 
@@ -86,9 +92,15 @@ export async function POST(
       { at: nowIso, actor: session.name, action: ACTION_LABEL[body.decision], note: body.note },
     ];
 
-    await ref.update({ approvers, status, history });
+    await ref.update({ approvers, status, history, updatedAt: nowIso });
 
-    const updated: RequestInstance = { ...current, approvers, status, history };
+    const updated: RequestInstance = {
+      ...current,
+      approvers,
+      status,
+      history,
+      updatedAt: nowIso,
+    };
     return NextResponse.json({ request: updated });
   } catch (error) {
     return apiErrorResponse(error);

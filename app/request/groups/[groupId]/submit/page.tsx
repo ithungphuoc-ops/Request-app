@@ -110,7 +110,7 @@ export default function SubmitRequestPage() {
         const body = await res.json().catch(() => ({}) as { error?: string });
         throw new Error(body.error ?? "Không thể gửi đề xuất, vui lòng thử lại.");
       }
-      router.push("/request/my-requests");
+      router.push("/request/list?scope=mine");
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Có lỗi xảy ra.");
     } finally {

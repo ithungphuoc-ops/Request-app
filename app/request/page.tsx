@@ -40,14 +40,14 @@ export default function RequestHomePage() {
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Link
-          href="/request/inbox"
+          href="/request/list?scope=sent-to-me"
           className="rounded-[3px] border border-[var(--color-border)] bg-white p-5 hover:border-[var(--color-action-blue)]"
         >
           <p className="text-[13px] text-gray-500">Chờ tôi duyệt</p>
           <p className="mt-1 text-[28px] font-bold text-gray-900">{inboxCount}</p>
         </Link>
         <Link
-          href="/request/my-requests"
+          href="/request/list?scope=mine"
           className="rounded-[3px] border border-[var(--color-border)] bg-white p-5 hover:border-[var(--color-action-blue)]"
         >
           <p className="text-[13px] text-gray-500">Đề xuất của tôi</p>
@@ -76,7 +76,7 @@ export default function RequestHomePage() {
                     ? r.groupId
                       ? `/request/groups/${r.groupId}/submit?draftId=${r.id}`
                       : `/request/direct/new?draftId=${r.id}`
-                    : `/request/requests/${r.id}`
+                    : `/request/list?scope=mine&id=${r.id}`
                 }
                 className="flex items-center gap-3 border-b border-gray-100 px-4 py-3 text-[13px] last:border-0 hover:bg-gray-50"
               >
