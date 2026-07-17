@@ -6,11 +6,11 @@ const alice: TaggedUser = { id: "u1", name: "Alice", username: "alice", avatarIn
 const bob: TaggedUser = { id: "u2", name: "Bob", username: "bob", avatarInitial: "B" };
 
 describe("canManageGroupsAtAppScope", () => {
-  it("chỉ owner và app_admin được quản lý ở mức toàn ứng dụng", () => {
+  it("chỉ owner và admin (vai trò toàn cục app tổng) được quản lý ở mức toàn ứng dụng", () => {
     expect(canManageGroupsAtAppScope("owner")).toBe(true);
-    expect(canManageGroupsAtAppScope("app_admin")).toBe(true);
-    expect(canManageGroupsAtAppScope("admin")).toBe(false);
-    expect(canManageGroupsAtAppScope("member")).toBe(false);
+    expect(canManageGroupsAtAppScope("admin")).toBe(true);
+    expect(canManageGroupsAtAppScope("manager")).toBe(false);
+    expect(canManageGroupsAtAppScope("employee")).toBe(false);
   });
 });
 

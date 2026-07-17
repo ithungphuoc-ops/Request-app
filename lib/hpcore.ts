@@ -16,9 +16,6 @@ const APP_NAME = "hpcore";
 export const SSO_COOKIE_NAME = "session";
 const HPCORE_LOGIN_URL = "https://account.hpcore.vn/login";
 
-/** Khoá vai trò của app này trong app_permissions/{uid}.<key> ở Firestore hpcore */
-export const REQUEST_APP_PERMISSION_KEY = "request_app";
-
 function loadCred(): object {
   const raw = process.env.HPCORE_FIREBASE_SERVICE_ACCOUNT;
   if (!raw) {
@@ -44,7 +41,7 @@ export function getHpcoreAuth(): Auth {
   return (g.__hpcoreAuth ??= getAuth(getHpcoreApp()));
 }
 
-/** Firestore của app tổng — đọc app_permissions/{uid}.request_app + users/{uid} (họ tên) */
+/** Firestore của app tổng — đọc users/{uid} (vai trò toàn cục + họ tên) */
 export function getHpcoreDb(): Firestore {
   return (g.__hpcoreDb ??= getFirestore(getHpcoreApp()));
 }

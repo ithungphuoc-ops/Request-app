@@ -1,13 +1,7 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import {
-  REQUEST_APP_PERMISSION_KEY,
-  SSO_COOKIE_NAME,
-  getHpcoreDb,
-  hpcoreLoginUrl,
-  verifyHpcore,
-} from "@/lib/hpcore";
+import { SSO_COOKIE_NAME, getHpcoreDb, hpcoreLoginUrl, verifyHpcore } from "@/lib/hpcore";
 import { canManageGroupsAtAppScope, type Role } from "@/lib/permissions";
 
 export interface Session {
@@ -17,34 +11,30 @@ export interface Session {
   role: Role;
 }
 
-const VALID_ROLES: readonly Role[] = ["owner", "app_admin", "admin", "member"];
+const VALID_ROLES: readonly Role[] = ["owner", "admin", "manager", "employee"];
 
 /**
- * Vai trò THẬT SỰ do app tổng gán (app_permissions/{uid}.request_app) — nguồn
- * quyết định duy nhất, app này không có trang phân quyền riêng. Lỗi đọc
- * cross-project → null, rơi về "member" mặc định (không chặn đăng nhập).
+ * Đọc thẳng hồ sơ users/{uid} của app tổng — vai trò TOÀN CỤC (không phải
+ * per-app) và họ tên, gộp 1 lần đọc. Không dùng app_permissions: app này
+ * không có hệ vai trò riêng, không cần bước gán quyền thủ công nào thêm.
+ * Lỗi đọc cross-project → rơi về "employee" + email (không chặn đăng nhập).
  */
-async function fetchCentralRole(uid: string): Promise<Role | null> {
-  try {
-    const snap = await getHpcoreDb().collection("app_permissions").doc(uid).get();
-    const role = snap.data()?.[REQUEST_APP_PERMISSION_KEY];
-    return typeof role === "string" && VALID_ROLES.includes(role as Role)
-      ? (role as Role)
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-async function fetchDisplayName(uid: string, email: string): Promise<string> {
+async function fetchProfile(
+  uid: string,
+  email: string,
+): Promise<{ role: Role; name: string }> {
   try {
     const snap = await getHpcoreDb().collection("users").doc(uid).get();
-    const fullName = (snap.data()?.fullName as string | undefined)?.trim();
-    if (fullName) return fullName;
+    const data = snap.data();
+    const role = data?.role;
+    const fullName = (data?.fullName as string | undefined)?.trim();
+    return {
+      role: typeof role === "string" && VALID_ROLES.includes(role as Role) ? (role as Role) : "employee",
+      name: fullName || email.split("@")[0],
+    };
   } catch {
-    /* đọc hồ sơ app tổng lỗi → rơi về email */
+    return { role: "employee", name: email.split("@")[0] };
   }
-  return email.split("@")[0];
 }
 
 const DEV_FALLBACK_USER: Session = {
@@ -65,12 +55,8 @@ export async function getSession(): Promise<Session | null> {
     return null;
   }
 
-  const [role, name] = await Promise.all([
-    fetchCentralRole(identity.uid),
-    fetchDisplayName(identity.uid, identity.email),
-  ]);
-
-  return { uid: identity.uid, email: identity.email, name, role: role ?? "member" };
+  const { role, name } = await fetchProfile(identity.uid, identity.email);
+  return { uid: identity.uid, email: identity.email, name, role };
 }
 
 export class AuthError extends Error {}
@@ -87,7 +73,7 @@ export async function requireSession(): Promise<Session> {
 export async function requireWriteAccess(): Promise<Session> {
   const session = await requireSession();
   if (!canManageGroupsAtAppScope(session.role)) {
-    throw new ForbiddenError("Chỉ Owner hoặc App Admin được cấu hình nhóm đề xuất.");
+    throw new ForbiddenError("Chỉ Owner hoặc Admin (vai trò app tổng) được cấu hình nhóm đề xuất.");
   }
   return session;
 }
