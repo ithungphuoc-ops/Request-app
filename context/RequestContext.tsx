@@ -28,7 +28,7 @@ interface RequestContextValue {
   closeCreateGroup: () => void;
   createGroup: (
     data: Omit<ProposalGroup, "id" | "fields" | "pinned" | "createdAt" | "status">,
-  ) => void;
+  ) => Promise<ProposalGroup>;
   getGroupById: (groupId: string) => ProposalGroup | undefined;
   updateGroup: (groupId: string, patch: Partial<ProposalGroup>) => void;
   addField: (
@@ -152,20 +152,23 @@ export function RequestProvider({ children }: { children: React.ReactNode }) {
   );
 
   const createGroup = useCallback(
-    (
+    async (
       data: Omit<ProposalGroup, "id" | "fields" | "pinned" | "createdAt" | "status">,
-    ) => {
-      fetch("/api/groups", {
+    ): Promise<ProposalGroup> => {
+      const res = await fetch("/api/groups", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-      })
-        .then(async (res) => {
-          if (!res.ok) return;
-          // Danh mục mới (nếu có) do server tạo — nạp lại toàn bộ để đồng bộ chính xác.
-          await refetchGroups();
-        })
-        .finally(() => setCreateGroupOpen(false));
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}) as { error?: string });
+        throw new Error(body.error ?? "Không thể tạo nhóm đề xuất.");
+      }
+      const { group } = (await res.json()) as { group: ProposalGroup };
+      // Danh mục mới (nếu có) do server tạo — nạp lại toàn bộ để đồng bộ chính xác.
+      await refetchGroups();
+      setCreateGroupOpen(false);
+      return group;
     },
     [refetchGroups],
   );

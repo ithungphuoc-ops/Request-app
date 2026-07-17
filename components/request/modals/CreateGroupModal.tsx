@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Modal from "@/components/shared/Modal";
 import TagUserInput from "@/components/shared/TagUserInput";
 import ApproverStepsEditor, {
@@ -27,8 +28,10 @@ import { validateGroupName, validateSlaHours } from "@/lib/validation";
 const flowOptions: ApprovalFlowType[] = ["concurrent", "sequential", "single"];
 
 export default function CreateGroupModal() {
+  const router = useRouter();
   const { createGroupOpen, closeCreateGroup, createGroup } = useRequestContext();
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
   const [approverSteps, setApproverSteps] = useState<DraftApproverStep[]>([]);
@@ -62,23 +65,30 @@ export default function CreateGroupModal() {
     }
 
     setErrors({});
+    setSubmitError(null);
     setSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    createGroup({
-      name: name.trim(),
-      description,
-      category: category || "Chưa phân loại",
-      approvalFlow,
-      slaHours: slaValue,
-      notifyManager,
-      usedFor,
-      approverSteps: steps,
-      followers,
-    });
-
-    setSubmitting(false);
-    resetForm();
+    try {
+      const group = await createGroup({
+        name: name.trim(),
+        description,
+        category: category || "Chưa phân loại",
+        approvalFlow,
+        slaHours: slaValue,
+        notifyManager,
+        usedFor,
+        approverSteps: steps,
+        followers,
+      });
+      resetForm();
+      // Đưa thẳng sang trang thiết lập mẫu biểu — nhóm mới tạo chưa có
+      // trường dữ liệu nào, nếu chỉ đóng modal thì admin không biết đi đâu
+      // để dựng form tiếp theo.
+      router.push(`/request/groups/${group.id}/form`);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Có lỗi xảy ra, vui lòng thử lại.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const resetForm = () => {
@@ -93,6 +103,7 @@ export default function CreateGroupModal() {
     setDescription("");
     setAdvancedOpen(false);
     setErrors({});
+    setSubmitError(null);
   };
 
   const handleClose = () => {
@@ -223,6 +234,10 @@ export default function CreateGroupModal() {
               />
             </FieldRow>
           </div>
+        )}
+
+        {submitError && (
+          <p className="text-[13px] text-[var(--color-danger-red)]">{submitError}</p>
         )}
       </div>
     </Modal>

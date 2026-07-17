@@ -49,6 +49,10 @@ export default function FuncBar() {
   const { session, isAdmin } = useCurrentSession();
 
   const pinnedGroups = categoryGroups.flatMap((cat) => cat.groups).filter((g) => g.pinned);
+  // Admin/owner cần vào thiết lập (mẫu biểu, người duyệt...) trước khi dùng
+  // được — nhân viên chỉ gửi đề xuất nên vào thẳng form.
+  const groupHref = (groupId: string) =>
+    isAdmin ? `/request/groups/${groupId}/general` : `/request/groups/${groupId}/submit`;
 
   return (
     <nav
@@ -160,7 +164,7 @@ export default function FuncBar() {
             {pinnedGroups.map((g) => (
               <Link
                 key={g.id}
-                href={`/request/groups/${g.id}/submit`}
+                href={groupHref(g.id)}
                 className="truncate rounded px-2 py-1.5 text-[12px] text-gray-600 hover:bg-[var(--color-funcbar-active-bg)]"
                 title={g.name}
               >
@@ -188,7 +192,7 @@ export default function FuncBar() {
                   {activeGroups.map((g) => (
                     <Link
                       key={g.id}
-                      href={`/request/groups/${g.id}/submit`}
+                      href={groupHref(g.id)}
                       className="truncate rounded px-2 py-1.5 text-[12px] text-gray-700 hover:bg-[var(--color-funcbar-active-bg)]"
                       title={g.description || g.name}
                     >
