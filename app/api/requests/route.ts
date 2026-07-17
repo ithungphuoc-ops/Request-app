@@ -24,29 +24,31 @@ export async function GET(request: Request) {
 
     if (scope === "mine") {
       // Gồm cả nháp — "Đề xuất của tôi" hiển thị mọi đề xuất do người này tạo.
+      // Sắp xếp ở code thay vì .orderBy() để không cần tạo composite index
+      // Firestore cho where+orderBy khác field.
       const snap = await adminDb
         .collection("requests")
         .where("submittedBy.uid", "==", session.uid)
-        .orderBy("submittedAt", "desc")
         .get();
-      const requests = snap.docs.map(
-        (doc) => ({ id: doc.id, ...doc.data() }) as RequestInstance,
-      );
+      const requests = snap.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }) as RequestInstance)
+        .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
       return NextResponse.json({ requests });
     }
 
     if (scope === "inbox") {
       // Không lọc được "còn tôi cần duyệt" bằng 1 Firestore query đơn giản
       // (approvers là mảng lồng) — lấy các đề xuất đang pending rồi lọc bằng
-      // canApproverAct (đã có test, không viết lại).
+      // canApproverAct (đã có test, không viết lại). Sắp xếp ở code, lý do
+      // như trên (tránh cần composite index).
       const snap = await adminDb
         .collection("requests")
         .where("status", "==", "pending")
-        .orderBy("submittedAt", "desc")
         .get();
       const requests = snap.docs
         .map((doc) => ({ id: doc.id, ...doc.data() }) as RequestInstance)
-        .filter((r) => canApproverAct(r.approvalFlow, r.approvers, session.uid));
+        .filter((r) => canApproverAct(r.approvalFlow, r.approvers, session.uid))
+        .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
       return NextResponse.json({ requests });
     }
 
