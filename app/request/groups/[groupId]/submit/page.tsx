@@ -119,63 +119,65 @@ export default function SubmitRequestPage() {
   };
 
   return (
-    <div className="mx-auto max-w-[640px] px-8 py-6">
-      <h1 className="text-[20px] font-semibold text-gray-900">Gửi đề xuất: {group.name}</h1>
+    <div className="mx-auto max-w-[820px] px-8 py-6">
+      <h1 className="text-[22px] font-bold text-gray-900">Gửi đề xuất: {group.name}</h1>
       {group.description && (
         <p className="mt-1 text-[13px] text-gray-500">{group.description}</p>
       )}
 
-      <div className="mt-6 flex flex-col gap-4">
-        {group.fields.length === 0 && (
-          <p className="text-[13px] text-gray-400">Nhóm này chưa có trường dữ liệu nào.</p>
-        )}
-        {group.fields
-          .slice()
-          .sort((a, b) => a.order - b.order)
-          .map((field) => (
-            <FieldRow
-              key={field.id}
-              field={field}
-              value={values[field.id]}
-              error={errors[field.id]}
-              onChange={(value) => setFieldValue(field.id, value)}
-            />
-          ))}
-      </div>
+      <div className="mt-5 rounded-[6px] border border-[var(--color-border)] bg-white p-6 shadow-sm">
+        <div className="flex flex-col gap-5">
+          {group.fields.length === 0 && (
+            <p className="text-[13px] text-gray-400">Nhóm này chưa có trường dữ liệu nào.</p>
+          )}
+          {group.fields
+            .slice()
+            .sort((a, b) => a.order - b.order)
+            .map((field) => (
+              <FieldRow
+                key={field.id}
+                field={field}
+                value={values[field.id]}
+                error={errors[field.id]}
+                onChange={(value) => setFieldValue(field.id, value)}
+              />
+            ))}
+        </div>
 
-      {submitError && (
-        <p className="mt-4 text-[13px] text-[var(--color-danger-red)]">{submitError}</p>
-      )}
-
-      <div className="mt-6 flex items-center gap-3">
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={submitting || savingDraft}
-          className={`${confirmButtonClass} flex-none px-6`}
-        >
-          {submitting ? "Đang gửi..." : "Gửi đề xuất"}
-        </button>
-        <button
-          type="button"
-          onClick={saveDraft}
-          disabled={submitting || savingDraft}
-          className={`${cancelButtonClass} flex-none px-6`}
-        >
-          {savingDraft ? "Đang lưu..." : "Lưu nháp"}
-        </button>
-        {draftSavedAt && (
-          <span className="text-[12px] text-gray-400">
-            Đã lưu nháp lúc {new Date(draftSavedAt).toLocaleTimeString("vi-VN")}
-          </span>
+        {submitError && (
+          <p className="mt-5 text-[13px] text-[var(--color-danger-red)]">{submitError}</p>
         )}
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="text-[13px] text-gray-500 hover:underline"
-        >
-          Hủy bỏ
-        </button>
+
+        <div className="mt-6 flex items-center gap-3 border-t border-gray-100 pt-5">
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting || savingDraft}
+            className={`${confirmButtonClass} flex-none px-6`}
+          >
+            {submitting ? "Đang gửi..." : "Gửi đề xuất"}
+          </button>
+          <button
+            type="button"
+            onClick={saveDraft}
+            disabled={submitting || savingDraft}
+            className={`${cancelButtonClass} flex-none px-6`}
+          >
+            {savingDraft ? "Đang lưu..." : "Lưu nháp"}
+          </button>
+          {draftSavedAt && (
+            <span className="text-[12px] text-gray-400">
+              Đã lưu nháp lúc {new Date(draftSavedAt).toLocaleTimeString("vi-VN")}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="text-[13px] text-gray-500 hover:underline"
+          >
+            Hủy bỏ
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -194,20 +196,24 @@ function FieldRow({
 }) {
   if (field.dataType === "section_title") {
     return (
-      <div className="mt-2 border-b border-gray-100 pb-1">
-        <h2 className="text-[14px] font-semibold text-gray-800">{field.name}</h2>
+      <div className="-mx-6 mt-1 border-b border-gray-100 bg-gray-50 px-6 py-2">
+        <h2 className="text-[13px] font-semibold uppercase tracking-wide text-gray-500">
+          {field.name}
+        </h2>
       </div>
     );
   }
 
   return (
-    <div>
-      <label className="mb-1 block text-[13px] font-medium text-gray-700">
+    <div className="flex flex-col gap-2 sm:flex-row sm:gap-4">
+      <label className="shrink-0 pt-1.5 text-[13px] font-semibold text-gray-700 sm:w-[220px]">
         {field.name}
         {field.required && <span className="ml-0.5 text-[var(--color-danger-red)]">*</span>}
       </label>
-      <FieldControl field={field} value={value} onChange={onChange} />
-      {error && <p className="mt-1 text-[12px] text-[var(--color-danger-red)]">{error}</p>}
+      <div className="min-w-0 flex-1">
+        <FieldControl field={field} value={value} onChange={onChange} />
+        {error && <p className="mt-1 text-[12px] text-[var(--color-danger-red)]">{error}</p>}
+      </div>
     </div>
   );
 }
