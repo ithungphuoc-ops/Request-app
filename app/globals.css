@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f4f5f7;
+  --foreground: #222222;
 }
 
 @theme inline {
@@ -10,17 +10,62 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* App bar (dark, narrow icon rail) */
+  --color-appbar-bg: #1f2126;
+  --color-appbar-text: #a7abb3;
+  --color-appbar-text-active: #ffffff;
+
+  /* Function sidebar (light) */
+  --color-funcbar-bg: #ffffff;
+  --color-funcbar-active-bg: #eef1f5;
+  --color-funcbar-border: #e0e3e7;
+
+  /* Content */
+  --color-page-bg: #f4f5f7;
+  --color-card-bg: #ffffff;
+  --color-border: #e0e3e7;
+  --color-text-primary: #222222;
+  --color-text-secondary: #8a8f98;
+
+  --color-action-blue: #2f80d9;
+  --color-confirm-green: #31bf12;
+  --color-danger-red: #e5484d;
+  --color-category-header-bg: #eaf7e6;
+  --color-category-header-text: #2f9e44;
+  --color-cancel-gray: #e4e6ea;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+@keyframes overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modal-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-overlay {
+  animation: overlay-fade-in 150ms ease-out;
+}
+
+.animate-modal-pop {
+  animation: modal-pop-in 150ms ease-out;
 }
