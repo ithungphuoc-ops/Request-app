@@ -90,11 +90,11 @@ async function resolveSubmitterManager(submitterUid: string): Promise<TaggedUser
  * tự đổi nếu trưởng đơn vị đổi sau này).
  */
 export async function resolveApproverSteps(
-  steps: ApproverStepDef[],
+  steps: ApproverStepDef[] | undefined,
   submitterUid: string,
 ): Promise<TaggedUser[]> {
   const resolved: TaggedUser[] = [];
-  for (const step of steps) {
+  for (const step of steps ?? []) {
     resolved.push(step.kind === "fixed" ? step.user : await resolveSubmitterManager(submitterUid));
   }
   return resolved;

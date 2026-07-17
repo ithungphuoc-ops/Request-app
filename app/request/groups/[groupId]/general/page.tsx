@@ -55,7 +55,7 @@ export default function GeneralSettingsPage() {
     setSlaHours(group.slaHours != null ? String(group.slaHours) : "");
     setNotifyManager(group.notifyManager);
     setUsedFor(group.usedFor);
-    setApproverSteps(fromApproverSteps(group.approverSteps));
+    setApproverSteps(fromApproverSteps(group.approverSteps ?? []));
     setFollowers(group.followers);
     // Chỉ đồng bộ lại khi chuyển sang nhóm khác, tránh ghi đè trong lúc đang sửa.
     // eslint-disable-next-line react-hooks/exhaustive-deps
