@@ -1,4 +1,5 @@
 import type {
+  ApproverStepDef,
   AuditEntry,
   CategoryGroup,
   ProposalField,
@@ -8,6 +9,10 @@ import type {
 
 function user(id: string, name: string, username: string): TaggedUser {
   return { id, name, username, avatarInitial: name.charAt(0) };
+}
+
+function fixedStep(u: TaggedUser): ApproverStepDef {
+  return { kind: "fixed", user: u };
 }
 
 const hr = user("u1", "Trần Văn Long", "long.tran");
@@ -39,7 +44,7 @@ export const proposalGroups: ProposalGroup[] = [
     slaHours: 24,
     notifyManager: true,
     usedFor: [],
-    approvers: [hr],
+    approverSteps: [fixedStep(hr)],
     followers: [ceo],
     fields: leaveFields,
     pinned: true,
@@ -55,7 +60,7 @@ export const proposalGroups: ProposalGroup[] = [
     slaHours: 48,
     notifyManager: false,
     usedFor: [],
-    approvers: [finance, ceo],
+    approverSteps: [fixedStep(finance), fixedStep(ceo)],
     followers: [],
     fields: paymentFields,
     pinned: false,
@@ -71,7 +76,7 @@ export const proposalGroups: ProposalGroup[] = [
     slaHours: 72,
     notifyManager: true,
     usedFor: [sales],
-    approvers: [finance, hr],
+    approverSteps: [fixedStep(finance), fixedStep(hr)],
     followers: [],
     fields: [],
     pinned: false,
@@ -87,7 +92,7 @@ export const proposalGroups: ProposalGroup[] = [
     slaHours: null,
     notifyManager: true,
     usedFor: [],
-    approvers: [hr, ceo],
+    approverSteps: [fixedStep(hr), fixedStep(ceo)],
     followers: [],
     fields: [],
     pinned: false,

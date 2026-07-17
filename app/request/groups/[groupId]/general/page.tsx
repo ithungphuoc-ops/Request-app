@@ -4,6 +4,11 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useRequestContext } from "@/context/RequestContext";
 import TagUserInput from "@/components/shared/TagUserInput";
+import ApproverStepsEditor, {
+  fromApproverSteps,
+  toApproverSteps,
+  type DraftApproverStep,
+} from "@/components/request/ApproverStepsEditor";
 import {
   confirmButtonClass,
   inputClass,
@@ -33,10 +38,12 @@ export default function GeneralSettingsPage() {
   const [slaHours, setSlaHours] = useState(group?.slaHours != null ? String(group.slaHours) : "");
   const [notifyManager, setNotifyManager] = useState(group?.notifyManager ?? true);
   const [usedFor, setUsedFor] = useState<TaggedUser[]>(group?.usedFor ?? []);
-  const [approvers, setApprovers] = useState<TaggedUser[]>(group?.approvers ?? []);
+  const [approverSteps, setApproverSteps] = useState<DraftApproverStep[]>(
+    fromApproverSteps(group?.approverSteps ?? []),
+  );
   const [followers, setFollowers] = useState<TaggedUser[]>(group?.followers ?? []);
 
-  const [errors, setErrors] = useState<{ name?: string; sla?: string }>({});
+  const [errors, setErrors] = useState<{ name?: string; sla?: string; approvers?: string }>({});
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   useEffect(() => {
@@ -48,7 +55,7 @@ export default function GeneralSettingsPage() {
     setSlaHours(group.slaHours != null ? String(group.slaHours) : "");
     setNotifyManager(group.notifyManager);
     setUsedFor(group.usedFor);
-    setApprovers(group.approvers);
+    setApproverSteps(fromApproverSteps(group.approverSteps));
     setFollowers(group.followers);
     // Chỉ đồng bộ lại khi chuyển sang nhóm khác, tránh ghi đè trong lúc đang sửa.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -60,9 +67,14 @@ export default function GeneralSettingsPage() {
     const nameCheck = validateGroupName(name);
     const slaValue = slaHours.trim() === "" ? null : Number(slaHours);
     const slaCheck = validateSlaHours(slaValue);
+    const steps = toApproverSteps(approverSteps);
 
-    if (!nameCheck.valid || !slaCheck.valid) {
-      setErrors({ name: nameCheck.error, sla: slaCheck.error });
+    if (!nameCheck.valid || !slaCheck.valid || !steps) {
+      setErrors({
+        name: nameCheck.error,
+        sla: slaCheck.error,
+        approvers: steps ? undefined : "Còn bước duyệt chưa chọn người cố định.",
+      });
       return;
     }
 
@@ -75,7 +87,7 @@ export default function GeneralSettingsPage() {
       slaHours: slaValue,
       notifyManager,
       usedFor,
-      approvers,
+      approverSteps: steps,
       followers,
     });
     setSavedAt(Date.now());
@@ -114,8 +126,14 @@ export default function GeneralSettingsPage() {
           </datalist>
         </Row>
 
-        <Row label="Người xét duyệt">
-          <TagUserInput value={approvers} onChange={setApprovers} />
+        <Row
+          label="Người xét duyệt"
+          description="Từng bước là 1 người cố định hoặc tự động lấy trưởng đơn vị của người gửi."
+        >
+          <ApproverStepsEditor value={approverSteps} onChange={setApproverSteps} />
+          {errors.approvers && (
+            <p className="mt-1 text-[12px] text-[var(--color-danger-red)]">{errors.approvers}</p>
+          )}
         </Row>
 
         <Row label="Quy trình xử lý" description={approvalFlowDescriptions[approvalFlow]}>

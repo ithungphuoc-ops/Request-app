@@ -3,6 +3,10 @@
 import { useState } from "react";
 import Modal from "@/components/shared/Modal";
 import TagUserInput from "@/components/shared/TagUserInput";
+import ApproverStepsEditor, {
+  toApproverSteps,
+  type DraftApproverStep,
+} from "@/components/request/ApproverStepsEditor";
 import {
   cancelButtonClass,
   confirmButtonClass,
@@ -27,7 +31,7 @@ export default function CreateGroupModal() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const [name, setName] = useState("");
-  const [approvers, setApprovers] = useState<TaggedUser[]>([]);
+  const [approverSteps, setApproverSteps] = useState<DraftApproverStep[]>([]);
   const [notifyManager, setNotifyManager] = useState(true);
   const [approvalFlow, setApprovalFlow] = useState<ApprovalFlowType>("concurrent");
 
@@ -37,7 +41,7 @@ export default function CreateGroupModal() {
   const [followers, setFollowers] = useState<TaggedUser[]>([]);
   const [description, setDescription] = useState("");
 
-  const [errors, setErrors] = useState<{ name?: string; sla?: string }>({});
+  const [errors, setErrors] = useState<{ name?: string; sla?: string; approvers?: string }>({});
   const [submitting, setSubmitting] = useState(false);
 
   if (!createGroupOpen) return null;
@@ -46,9 +50,14 @@ export default function CreateGroupModal() {
     const nameCheck = validateGroupName(name);
     const slaValue = slaHours.trim() === "" ? null : Number(slaHours);
     const slaCheck = validateSlaHours(slaValue);
+    const steps = toApproverSteps(approverSteps);
 
-    if (!nameCheck.valid || !slaCheck.valid) {
-      setErrors({ name: nameCheck.error, sla: slaCheck.error });
+    if (!nameCheck.valid || !slaCheck.valid || !steps) {
+      setErrors({
+        name: nameCheck.error,
+        sla: slaCheck.error,
+        approvers: steps ? undefined : "Còn bước duyệt chưa chọn người cố định.",
+      });
       return;
     }
 
@@ -64,7 +73,7 @@ export default function CreateGroupModal() {
       slaHours: slaValue,
       notifyManager,
       usedFor,
-      approvers,
+      approverSteps: steps,
       followers,
     });
 
@@ -74,7 +83,7 @@ export default function CreateGroupModal() {
 
   const resetForm = () => {
     setName("");
-    setApprovers([]);
+    setApproverSteps([]);
     setNotifyManager(true);
     setApprovalFlow("concurrent");
     setCategory("");
@@ -123,8 +132,14 @@ export default function CreateGroupModal() {
           {errors.name && <p className="mt-1 text-[12px] text-[var(--color-danger-red)]">{errors.name}</p>}
         </FieldRow>
 
-        <FieldRow label="Người xét duyệt" description="Gõ @ để tìm và chọn nhiều người.">
-          <TagUserInput value={approvers} onChange={setApprovers} />
+        <FieldRow
+          label="Người xét duyệt"
+          description="Từng bước là 1 người cố định hoặc tự động lấy trưởng đơn vị của người gửi."
+        >
+          <ApproverStepsEditor value={approverSteps} onChange={setApproverSteps} />
+          {errors.approvers && (
+            <p className="mt-1 text-[12px] text-[var(--color-danger-red)]">{errors.approvers}</p>
+          )}
         </FieldRow>
 
         <FieldRow label="Báo quản lý trực tiếp" description="Yêu cầu thông báo tới người quản lý trực tiếp của người tạo.">

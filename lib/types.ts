@@ -67,6 +67,16 @@ export const fieldDataTypeLabels: Record<FieldDataType, string> = {
   section_title: "Tiêu đề phân đoạn",
 };
 
+/**
+ * Định nghĩa 1 bước duyệt của nhóm — "fixed" là một người cố định (giống
+ * nhau cho mọi đề xuất); "submitter_manager" là quản lý trực tiếp/trưởng
+ * đơn vị của CHÍNH NGƯỜI GỬI, được tra cứu lại (department.leaderId) tại
+ * thời điểm gửi từng đề xuất — khác nhau tuỳ người gửi.
+ */
+export type ApproverStepDef =
+  | { kind: "fixed"; user: TaggedUser }
+  | { kind: "submitter_manager" };
+
 export interface ProposalGroup {
   id: string;
   name: string;
@@ -77,7 +87,7 @@ export interface ProposalGroup {
   slaHours: number | null;
   notifyManager: boolean;
   usedFor: TaggedUser[];
-  approvers: TaggedUser[];
+  approverSteps: ApproverStepDef[];
   followers: TaggedUser[];
   fields: ProposalField[];
   pinned: boolean;

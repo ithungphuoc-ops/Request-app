@@ -6,6 +6,7 @@ import {
   buildInitialApprovers,
   computeDeadline,
   findMissingRequiredFields,
+  resolveApproverSteps,
   toProposalGroup,
 } from "@/lib/server/requests";
 import { requireSession } from "@/lib/session";
@@ -129,7 +130,7 @@ export async function PATCH(
           { status: 400 },
         );
       }
-      approversSnapshot = group.approvers;
+      approversSnapshot = await resolveApproverSteps(group.approverSteps, session.uid);
       const deadlineAt = computeDeadline(group.slaHours, new Date());
       const nowIso = new Date().toISOString();
       const ref = adminDb.collection("requests").doc(id);

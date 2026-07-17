@@ -7,6 +7,7 @@ import {
   buildInitialApprovers,
   computeDeadline,
   findMissingRequiredFields,
+  resolveApproverSteps,
   toProposalGroup,
 } from "@/lib/server/requests";
 import { requireSession } from "@/lib/session";
@@ -117,7 +118,12 @@ export async function POST(request: Request) {
       groupNameSnapshot = group.name;
       fieldsSnapshot = group.fields;
       approvalFlow = group.approvalFlow;
-      approversSnapshot = group.approvers;
+      // Nháp chưa cần xác định người duyệt thật (có thể chưa có phòng ban lúc
+      // soạn nháp) — chỉ phân giải (và có thể chặn nếu thiếu trưởng đơn vị)
+      // khi gửi chính thức.
+      approversSnapshot = isDraft
+        ? []
+        : await resolveApproverSteps(group.approverSteps, session.uid);
       followers = group.followers;
       deadlineAt = isDraft ? null : computeDeadline(group.slaHours, now);
     } else {
