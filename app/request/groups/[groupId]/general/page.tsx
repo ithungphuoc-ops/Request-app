@@ -9,6 +9,7 @@ import ApproverStepsEditor, {
   toApproverSteps,
   type DraftApproverStep,
 } from "@/components/request/ApproverStepsEditor";
+import RequireAdminRole from "@/components/request/RequireAdminRole";
 import {
   confirmButtonClass,
   inputClass,
@@ -27,6 +28,14 @@ import { validateGroupName, validateSlaHours } from "@/lib/validation";
 const flowOptions: ApprovalFlowType[] = ["concurrent", "sequential", "single"];
 
 export default function GeneralSettingsPage() {
+  return (
+    <RequireAdminRole>
+      <GeneralSettingsPageInner />
+    </RequireAdminRole>
+  );
+}
+
+function GeneralSettingsPageInner() {
   const params = useParams<{ groupId: string }>();
   const { getGroupById, updateGroup } = useRequestContext();
   const group = getGroupById(params.groupId);

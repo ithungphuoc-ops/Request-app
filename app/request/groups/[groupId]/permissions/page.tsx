@@ -1,3 +1,5 @@
+import RequireAdminRole from "@/components/request/RequireAdminRole";
+
 export default function GroupPermissionsPage() {
   const rules = [
     'Chỉ Owner hoặc App Admin được tạo và cấu hình nhóm ở mức toàn ứng dụng.',
@@ -7,19 +9,21 @@ export default function GroupPermissionsPage() {
   ];
 
   return (
-    <div className="max-w-[560px]">
-      <h2 className="mb-4 text-[15px] font-semibold text-gray-800">Tùy chỉnh về phân quyền</h2>
-      <p className="mb-3 text-[12px] text-gray-500">
-        Quy tắc phân quyền tối thiểu áp dụng cho nhóm đề xuất này (§5.3):
-      </p>
-      <ul className="flex flex-col gap-2">
-        {rules.map((rule) => (
-          <li key={rule} className="flex items-start gap-2 text-[13px] text-gray-700">
-            <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-action-blue)]" />
-            {rule}
-          </li>
-        ))}
-      </ul>
-    </div>
+    <RequireAdminRole>
+      <div className="max-w-[560px]">
+        <h2 className="mb-4 text-[15px] font-semibold text-gray-800">Tùy chỉnh về phân quyền</h2>
+        <p className="mb-3 text-[12px] text-gray-500">
+          Quy tắc phân quyền tối thiểu áp dụng cho nhóm đề xuất này (§5.3):
+        </p>
+        <ul className="flex flex-col gap-2">
+          {rules.map((rule) => (
+            <li key={rule} className="flex items-start gap-2 text-[13px] text-gray-700">
+              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-action-blue)]" />
+              {rule}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </RequireAdminRole>
   );
 }

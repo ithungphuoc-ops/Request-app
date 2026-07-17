@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { BarChart3, Grid3x3, HelpCircle, Home, Search, Settings } from "lucide-react";
 import NotificationBell from "@/components/request/NotificationBell";
+import { useCurrentSession } from "@/lib/useCurrentSession";
 
 const iconItems = [
   { key: "home", label: "Trang chủ", icon: Home, href: "/request" },
@@ -11,6 +12,8 @@ const iconItems = [
 ];
 
 export default function AppBar() {
+  const { isAdmin } = useCurrentSession();
+
   return (
     <nav
       aria-label="Thanh ứng dụng"
@@ -48,14 +51,16 @@ export default function AppBar() {
           </Link>
         ))}
 
-        <Link
-          href="/request/groups"
-          title="Tùy chỉnh"
-          aria-label="Tùy chỉnh"
-          className="relative flex h-9 w-9 items-center justify-center rounded text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
-        >
-          <Settings size={18} strokeWidth={1.75} />
-        </Link>
+        {isAdmin && (
+          <Link
+            href="/request/groups"
+            title="Tùy chỉnh"
+            aria-label="Tùy chỉnh"
+            className="relative flex h-9 w-9 items-center justify-center rounded text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
+          >
+            <Settings size={18} strokeWidth={1.75} />
+          </Link>
+        )}
 
         <Link
           href="/"

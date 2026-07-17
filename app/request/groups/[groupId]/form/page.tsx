@@ -6,8 +6,17 @@ import { SortableContext, arrayMove, verticalListSortingStrategy } from "@dnd-ki
 import { FileSpreadsheet, Plus } from "lucide-react";
 import { useRequestContext } from "@/context/RequestContext";
 import FieldListItem from "@/components/request/FieldListItem";
+import RequireAdminRole from "@/components/request/RequireAdminRole";
 
 export default function ProposalFormPage() {
+  return (
+    <RequireAdminRole>
+      <ProposalFormPageInner />
+    </RequireAdminRole>
+  );
+}
+
+function ProposalFormPageInner() {
   const params = useParams<{ groupId: string }>();
   const { getGroupById, reorderFields, updateGroup, openAddFieldModal } = useRequestContext();
   const group = getGroupById(params.groupId);

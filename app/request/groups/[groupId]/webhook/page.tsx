@@ -2,8 +2,17 @@
 
 import { useState } from "react";
 import { inputClass, confirmButtonClass } from "@/components/shared/form-styles";
+import RequireAdminRole from "@/components/request/RequireAdminRole";
 
 export default function WebhookSettingsPage() {
+  return (
+    <RequireAdminRole>
+      <WebhookSettingsPageInner />
+    </RequireAdminRole>
+  );
+}
+
+function WebhookSettingsPageInner() {
   const [webhookUrl, setWebhookUrl] = useState("");
 
   return (

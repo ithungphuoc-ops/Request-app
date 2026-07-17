@@ -2,9 +2,18 @@
 
 import { useRequestContext } from "@/context/RequestContext";
 import { groupTemplates } from "@/lib/mock-data";
+import RequireAdminRole from "@/components/request/RequireAdminRole";
 import { Layers } from "lucide-react";
 
 export default function FromTemplatePage() {
+  return (
+    <RequireAdminRole>
+      <FromTemplatePageInner />
+    </RequireAdminRole>
+  );
+}
+
+function FromTemplatePageInner() {
   const { openCreateGroup } = useRequestContext();
 
   return (

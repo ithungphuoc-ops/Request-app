@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Layers, Plus, Search } from "lucide-react";
 import { useRequestContext, type StatusFilter } from "@/context/RequestContext";
 import GroupCategoryCard from "@/components/request/GroupCategoryCard";
+import RequireAdminRole from "@/components/request/RequireAdminRole";
 import Link from "next/link";
 
 const filterTabs: { key: StatusFilter; label: string }[] = [
@@ -13,6 +14,14 @@ const filterTabs: { key: StatusFilter; label: string }[] = [
 ];
 
 export default function GroupsPage() {
+  return (
+    <RequireAdminRole>
+      <GroupsPageInner />
+    </RequireAdminRole>
+  );
+}
+
+function GroupsPageInner() {
   const {
     filteredCategoryGroups,
     statusFilter,
