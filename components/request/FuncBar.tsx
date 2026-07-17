@@ -96,48 +96,61 @@ export default function FuncBar() {
               Tạo nhóm đề xuất
             </button>
           </div>
-
-          {pinnedGroups.length > 0 && (
-            <div className="mt-4 px-2">
-              <p className="mb-1 flex items-center gap-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-                <Star size={11} /> Quan trọng
-              </p>
-              <div className="flex flex-col gap-0.5">
-                {pinnedGroups.map((g) => (
-                  <Link
-                    key={g.id}
-                    href={`/request/groups/${g.id}/general`}
-                    className="truncate rounded px-2 py-1.5 text-[12px] text-gray-600 hover:bg-[var(--color-funcbar-active-bg)]"
-                    title={g.name}
-                  >
-                    {g.name}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="mt-4 px-2">
-            <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
-              Phân loại
-            </p>
-            <div className="flex flex-col gap-0.5">
-              {categoryGroups.map((cat) => (
-                <Link
-                  key={cat.id}
-                  href={`/request/groups?category=${cat.id}`}
-                  className="flex items-center justify-between rounded px-2 py-1.5 text-[12px] text-gray-600 hover:bg-[var(--color-funcbar-active-bg)]"
-                >
-                  <span className="truncate">
-                    {cat.code} - {cat.name}
-                  </span>
-                  <span className="shrink-0 text-gray-400">{cat.groups.length}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
         </>
       )}
+
+      <div className="mx-2 my-3 border-t border-[var(--color-funcbar-border)]" />
+
+      {pinnedGroups.length > 0 && (
+        <div className="px-2">
+          <p className="mb-1 flex items-center gap-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+            <Star size={11} /> Quan trọng
+          </p>
+          <div className="flex flex-col gap-0.5">
+            {pinnedGroups.map((g) => (
+              <Link
+                key={g.id}
+                href={`/request/groups/${g.id}/submit`}
+                className="truncate rounded px-2 py-1.5 text-[12px] text-gray-600 hover:bg-[var(--color-funcbar-active-bg)]"
+                title={g.name}
+              >
+                {g.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-4 px-2">
+        <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          Nhóm đề xuất
+        </p>
+        <div className="flex flex-col gap-2">
+          {categoryGroups.map((cat) => {
+            const activeGroups = cat.groups.filter((g) => g.status === "active");
+            if (activeGroups.length === 0) return null;
+            return (
+              <div key={cat.id}>
+                <p className="truncate px-2 py-1 text-[11px] font-medium text-gray-400" title={cat.name}>
+                  {cat.code} - {cat.name}
+                </p>
+                <div className="flex flex-col gap-0.5">
+                  {activeGroups.map((g) => (
+                    <Link
+                      key={g.id}
+                      href={`/request/groups/${g.id}/submit`}
+                      className="truncate rounded px-2 py-1.5 text-[12px] text-gray-700 hover:bg-[var(--color-funcbar-active-bg)]"
+                      title={g.description || g.name}
+                    >
+                      {g.name}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </nav>
   );
 }
