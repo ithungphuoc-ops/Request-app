@@ -141,6 +141,8 @@ export interface RequestComment {
  */
 export interface RequestInstance {
   id: string;
+  /** Mã hiển thị cho người dùng — 6 chữ số, cấp khi gửi chính thức (null lúc còn nháp). */
+  code: string | null;
   /** null = "Đề xuất trực tiếp", không gắn với nhóm/mẫu nào. */
   groupId: string | null;
   groupNameSnapshot: string;

@@ -68,6 +68,23 @@ export function toProposalGroup(id: string, data: Record<string, unknown>): Prop
   return { id, ...(data as Omit<ProposalGroup, "id">) };
 }
 
+/**
+ * Mã đề xuất hiển thị cho người dùng — số nguyên tăng dần, cấp qua transaction
+ * trên 1 document đếm dùng chung (counters/requestCode) để không trùng khi
+ * nhiều người gửi cùng lúc. Định dạng 6 chữ số (000001, 000002...) — nếu vượt
+ * quá 999999 thì hiện nhiều hơn 6 số, vẫn duy nhất, không lỗi.
+ */
+export async function generateRequestCode(): Promise<string> {
+  const counterRef = adminDb.collection("counters").doc("requestCode");
+  const next = await adminDb.runTransaction(async (tx) => {
+    const snap = await tx.get(counterRef);
+    const current = (snap.data()?.next as number | undefined) ?? 1;
+    tx.set(counterRef, { next: current + 1 }, { merge: true });
+    return current;
+  });
+  return String(next).padStart(6, "0");
+}
+
 /** Ném khi không xác định được người duyệt bước "quản lý phòng ban người gửi". */
 export class MissingApproverError extends Error {}
 

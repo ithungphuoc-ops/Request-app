@@ -6,6 +6,7 @@ import {
   canView,
   computeDeadline,
   findMissingRequiredFields,
+  generateRequestCode,
   loadRequest,
   resolveApproverSteps,
   toProposalGroup,
@@ -117,8 +118,10 @@ export async function PATCH(
       approversSnapshot = await resolveApproverSteps(group.approverSteps, session.uid);
       const deadlineAt = computeDeadline(group.slaHours, new Date());
       const nowIso = new Date().toISOString();
+      const code = found.code ?? (await generateRequestCode());
       const ref = adminDb.collection("requests").doc(id);
       const patch = {
+        code,
         values,
         groupNameSnapshot: group.name,
         fieldsSnapshot: group.fields,
@@ -146,8 +149,10 @@ export async function PATCH(
       );
     }
     const nowIso = new Date().toISOString();
+    const code = found.code ?? (await generateRequestCode());
     const ref = adminDb.collection("requests").doc(id);
     const patch = {
+      code,
       values,
       groupNameSnapshot,
       approversSnapshot,

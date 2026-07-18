@@ -8,6 +8,7 @@ import {
   canView,
   computeDeadline,
   findMissingRequiredFields,
+  generateRequestCode,
   resolveApproverSteps,
   toProposalGroup,
 } from "@/lib/server/requests";
@@ -195,8 +196,11 @@ export async function POST(request: Request) {
     const values = { ...(body.values ?? {}) };
     if (!body.groupId && body.description) values.description = body.description;
 
+    const code = isDraft ? null : await generateRequestCode();
+
     const requestRef = adminDb.collection("requests").doc();
     const newRequest: Omit<RequestInstance, "id"> = {
+      code,
       groupId: body.groupId ?? null,
       groupNameSnapshot,
       fieldsSnapshot,

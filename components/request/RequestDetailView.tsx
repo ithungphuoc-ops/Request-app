@@ -140,7 +140,9 @@ export default function RequestDetailView({
               )}
             </div>
           </div>
-          <span className="shrink-0 text-[11px] text-gray-400">Mã: {request.id}</span>
+          <span className="shrink-0 text-[11px] text-gray-400">
+            Mã đề xuất: <span className="font-medium text-gray-500">{request.code ?? request.id}</span>
+          </span>
         </div>
 
         {canAct && (
@@ -236,19 +238,29 @@ export default function RequestDetailView({
               {request.fieldsSnapshot
                 .slice()
                 .sort((a, b) => a.order - b.order)
-                .map((field, index) => (
-                  <div key={field.id}>
-                    <dt className="text-gray-400">
-                      {String(index + 1).padStart(2, "0")}. {field.name}
-                      <span className="ml-2 text-[11px] text-gray-300">
-                        {fieldDataTypeLabels[field.dataType]}
-                      </span>
-                    </dt>
-                    <dd className="font-medium text-gray-800">
-                      {formatValue(request.values[field.id])}
-                    </dd>
-                  </div>
-                ))}
+                .map((field, index) => {
+                  const isTable = field.dataType === "table" || field.dataType === "base_table";
+                  return (
+                    <div key={field.id}>
+                      <dt className="text-gray-400">
+                        {String(index + 1).padStart(2, "0")}. {field.name}
+                        <span className="ml-2 text-[11px] text-gray-300">
+                          {fieldDataTypeLabels[field.dataType]}
+                        </span>
+                      </dt>
+                      {isTable ? (
+                        <TableValueView
+                          columns={field.tableColumns ?? []}
+                          rows={(request.values[field.id] as string[][]) ?? []}
+                        />
+                      ) : (
+                        <dd className="font-medium text-gray-800">
+                          {formatValue(request.values[field.id])}
+                        </dd>
+                      )}
+                    </div>
+                  );
+                })}
             </dl>
           </div>
         )}
@@ -389,6 +401,45 @@ export default function RequestDetailView({
       {forwardOpen && (
         <ForwardModal onClose={() => setForwardOpen(false)} onConfirm={forward} />
       )}
+    </div>
+  );
+}
+
+function TableValueView({ columns, rows }: { columns: string[]; rows: string[][] }) {
+  if (columns.length === 0) {
+    return <p className="font-medium text-gray-800">—</p>;
+  }
+  const filledRows = rows.filter((row) => row.some((cell) => cell?.trim()));
+  if (filledRows.length === 0) {
+    return <p className="font-medium text-gray-800">—</p>;
+  }
+
+  return (
+    <div className="mt-1 overflow-x-auto rounded border border-[var(--color-border)]">
+      <table className="w-full text-[12px]">
+        <thead className="bg-gray-50">
+          <tr>
+            <th className="w-8 px-2 py-1.5 text-left text-gray-400">#</th>
+            {columns.map((col, i) => (
+              <th key={i} className="px-2 py-1.5 text-left font-medium text-gray-600">
+                {col}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {filledRows.map((row, rowIndex) => (
+            <tr key={rowIndex} className="border-t border-gray-100">
+              <td className="px-2 py-1.5 text-gray-400">{rowIndex + 1}</td>
+              {columns.map((_, colIndex) => (
+                <td key={colIndex} className="px-2 py-1.5 text-gray-800">
+                  {row[colIndex] || "—"}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
