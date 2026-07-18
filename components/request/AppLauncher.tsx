@@ -99,19 +99,22 @@ export default function AppLauncher({ onClose }: { onClose: () => void }) {
       onMouseDown={onClose}
     >
       <div
-        className="w-full max-w-4xl rounded-[6px] border border-[var(--color-border)] bg-white shadow-2xl"
+        className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl ring-1 ring-black/5"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="flex flex-col gap-3 border-b border-[var(--color-border)] p-5 sm:flex-row sm:items-center">
-          <div className="min-w-0">
-            <p className="truncate text-[14px] font-bold text-gray-900">
-              {session?.name ?? "Đang tải..."}
-            </p>
-            <p className="text-[12px] text-gray-500">
-              <a href={HPCORE_PROFILE_URL} className="text-[var(--color-action-blue)] hover:underline">
-                Tài khoản
+        <div className="flex flex-col gap-3 bg-gray-50 px-6 py-4 sm:flex-row sm:items-center">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--color-action-blue)] text-[14px] font-semibold text-white">
+              {session?.name.trim().charAt(0).toUpperCase() ?? "?"}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-[14px] font-bold text-gray-900">
+                {session?.name ?? "Đang tải..."}
+              </p>
+              <a href={HPCORE_PROFILE_URL} className="text-[12px] text-[var(--color-action-blue)] hover:underline">
+                Xem tài khoản
               </a>
-            </p>
+            </div>
           </div>
           <div className="relative sm:ml-auto sm:w-72">
             <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -120,37 +123,37 @@ export default function AppLauncher({ onClose }: { onClose: () => void }) {
               onChange={(e) => setQuery(e.target.value)}
               autoFocus
               placeholder="Tìm kiếm ứng dụng"
-              className="h-9 w-full rounded border border-[var(--color-border)] bg-white pl-9 pr-3 text-[13px] outline-none focus:border-[var(--color-action-blue)]"
+              className="h-9 w-full rounded-full border border-[var(--color-border)] bg-white pl-9 pr-3 text-[13px] outline-none focus:border-[var(--color-action-blue)]"
             />
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Đóng"
-            className="hidden h-8 w-8 shrink-0 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 sm:flex"
+            className="flex h-8 w-8 shrink-0 items-center justify-center self-end rounded-full text-gray-400 hover:bg-gray-200 hover:text-gray-700 sm:self-auto"
           >
             <X size={18} />
           </button>
         </div>
 
-        <div className="max-h-[70vh] space-y-6 overflow-y-auto p-5">
+        <div className="max-h-[70vh] space-y-7 overflow-y-auto p-6">
           <a
             href={HPCORE_DASHBOARD_URL}
-            className="inline-flex items-center gap-2 text-[13px] text-[var(--color-action-blue)] hover:underline"
+            className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] px-3.5 py-1.5 text-[13px] font-medium text-[var(--color-action-blue)] hover:bg-blue-50"
           >
             <LayoutGrid size={15} /> Tổng quan HPCons App Tổng
           </a>
 
           {apps === null ? (
-            <p className="py-8 text-center text-[13px] text-gray-400">Đang tải danh sách ứng dụng…</p>
+            <p className="py-10 text-center text-[13px] text-gray-400">Đang tải danh sách ứng dụng…</p>
           ) : groups.length === 0 ? (
-            <p className="py-8 text-center text-[13px] text-gray-400">Không có ứng dụng phù hợp</p>
+            <p className="py-10 text-center text-[13px] text-gray-400">Không có ứng dụng phù hợp</p>
           ) : (
             groups.map((g) => (
               <div key={g.title}>
-                <p className="text-[13px] font-semibold text-gray-800">{g.title}</p>
-                <p className="mb-3 text-[12px] text-gray-400">{g.subtitle}</p>
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+                <p className="text-[12px] font-semibold uppercase tracking-wide text-gray-500">{g.title}</p>
+                <p className="mb-4 mt-0.5 text-[12px] text-gray-400">{g.subtitle}</p>
+                <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
                   {g.apps.map((app) => (
                     <Tile key={app.name} app={app} />
                   ))}
@@ -171,7 +174,7 @@ function Tile({ app }: { app: RemoteApp }) {
   const inner = (
     <>
       <div
-        className={`flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl transition-transform group-hover:scale-105 ${
+        className={`flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl shadow-sm transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md ${
           app.image ? "bg-white" : app.color
         } ${app.comingSoon ? "opacity-50" : ""}`}
       >
@@ -179,24 +182,27 @@ function Tile({ app }: { app: RemoteApp }) {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={app.image} alt={app.name} className="h-full w-full scale-[1.15] object-cover" />
         ) : (
-          <Icon size={22} className="text-white" aria-hidden />
+          <Icon size={24} className="text-white" aria-hidden />
         )}
       </div>
       <span className={`text-center text-[12px] font-medium leading-tight ${app.comingSoon ? "text-gray-300" : "text-gray-800"}`}>
         {app.name}
       </span>
       {current && (
-        <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] text-[var(--color-action-blue)]">
-          Đang dùng
+        <span className="flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[9px] font-medium text-[var(--color-action-blue)]">
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-action-blue)]" /> Đang dùng
         </span>
       )}
       {app.comingSoon && (
-        <span className="rounded-full bg-orange-50 px-1.5 py-0.5 text-[9px] text-orange-500">Sắp ra mắt</span>
+        <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[9px] font-medium text-orange-500">
+          Sắp ra mắt
+        </span>
       )}
     </>
   );
 
-  const cls = "group flex flex-col items-center gap-2 rounded-xl p-3 transition-colors hover:bg-gray-50";
+  const cls =
+    "group flex flex-col items-center gap-2 rounded-2xl p-3 transition-colors hover:bg-gray-50";
 
   if (app.comingSoon || !app.href) {
     return (
