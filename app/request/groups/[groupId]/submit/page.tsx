@@ -332,7 +332,10 @@ function FieldControl({
     case "table":
     case "base_table": {
       const columns = field.tableColumns ?? [];
-      const rows = (value as string[][]) ?? [];
+      const rawRows = (value as string[][]) ?? [];
+      // Luôn hiện sẵn ít nhất 1 dòng trống để người gửi thấy ngay chỗ nhập,
+      // "Thêm dòng" chỉ để thêm dòng THỨ 2 trở đi — không cho xoá về 0 dòng.
+      const rows = rawRows.length === 0 ? [columns.map(() => "")] : rawRows;
 
       const updateCell = (rowIndex: number, colIndex: number, cellValue: string) => {
         const next = rows.map((row) => [...row]);
@@ -341,7 +344,10 @@ function FieldControl({
         onChange(next);
       };
       const addRow = () => onChange([...rows, columns.map(() => "")]);
-      const removeRow = (rowIndex: number) => onChange(rows.filter((_, i) => i !== rowIndex));
+      const removeRow = (rowIndex: number) => {
+        if (rows.length <= 1) return;
+        onChange(rows.filter((_, i) => i !== rowIndex));
+      };
 
       if (columns.length === 0) {
         return (
@@ -367,13 +373,6 @@ function FieldControl({
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 && (
-                  <tr>
-                    <td colSpan={columns.length + 2} className="px-2 py-4 text-center text-gray-400">
-                      Chưa có dòng nào.
-                    </td>
-                  </tr>
-                )}
                 {rows.map((row, rowIndex) => (
                   <tr key={rowIndex} className="border-t border-gray-100">
                     <td className="px-2 py-1 text-gray-400">{rowIndex + 1}</td>
@@ -387,14 +386,16 @@ function FieldControl({
                       </td>
                     ))}
                     <td className="px-1 py-1 text-center">
-                      <button
-                        type="button"
-                        onClick={() => removeRow(rowIndex)}
-                        aria-label="Xóa dòng"
-                        className="text-gray-300 hover:text-[var(--color-danger-red)]"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {rows.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeRow(rowIndex)}
+                          aria-label="Xóa dòng"
+                          className="text-gray-300 hover:text-[var(--color-danger-red)]"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
