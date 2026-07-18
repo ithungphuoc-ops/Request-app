@@ -21,26 +21,26 @@ export default function AppBar() {
   return (
     <nav
       aria-label="Thanh ứng dụng"
-      className="flex h-full w-[42px] shrink-0 flex-col items-center bg-[var(--color-appbar-bg)] py-3"
+      className="flex h-full w-20 shrink-0 flex-col items-center bg-[var(--color-appbar-bg)] py-3"
     >
       <button
         type="button"
         onClick={() => setLauncherOpen(true)}
         aria-label="Mở danh sách ứng dụng HPCons"
         title="Mở danh sách ứng dụng"
-        className="mb-3 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded bg-white"
+        className="mb-2 flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white"
       >
-        <Image src="/logo.png" alt="HPCons" width={32} height={32} className="h-full w-full object-contain" />
+        <Image src="/logo.png" alt="HPCons" width={40} height={40} className="h-full w-full object-contain" />
       </button>
 
-      <div className="flex flex-1 flex-col items-center gap-1">
+      <div className="flex flex-1 flex-col items-center gap-1.5">
         <Link
           href={iconItems[0].href}
           title={iconItems[0].label}
           aria-label={iconItems[0].label}
-          className="flex h-9 w-9 items-center justify-center rounded text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
+          className="flex h-12 w-12 items-center justify-center rounded-xl text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
         >
-          <Home size={18} strokeWidth={1.75} />
+          <Home size={22} strokeWidth={1.75} />
         </Link>
 
         <NotificationBell />
@@ -51,9 +51,9 @@ export default function AppBar() {
             href={item.href}
             title={item.label}
             aria-label={item.label}
-            className="flex h-9 w-9 items-center justify-center rounded text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
+            className="flex h-12 w-12 items-center justify-center rounded-xl text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
           >
-            <item.icon size={18} strokeWidth={1.75} />
+            <item.icon size={22} strokeWidth={1.75} />
           </Link>
         ))}
 
@@ -62,9 +62,9 @@ export default function AppBar() {
             href="/request/groups"
             title="Tùy chỉnh"
             aria-label="Tùy chỉnh"
-            className="relative flex h-9 w-9 items-center justify-center rounded text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
+            className="relative flex h-12 w-12 items-center justify-center rounded-xl text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
           >
-            <Settings size={18} strokeWidth={1.75} />
+            <Settings size={22} strokeWidth={1.75} />
           </Link>
         )}
 
@@ -73,9 +73,9 @@ export default function AppBar() {
           onClick={() => setLauncherOpen(true)}
           title="Ứng dụng khác"
           aria-label="Mở danh sách ứng dụng khác"
-          className="flex h-9 w-9 items-center justify-center rounded text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
+          className="flex h-12 w-12 items-center justify-center rounded-xl text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
         >
-          <Grid3x3 size={18} strokeWidth={1.75} />
+          <Grid3x3 size={22} strokeWidth={1.75} />
         </button>
       </div>
 
@@ -83,9 +83,9 @@ export default function AppBar() {
         href="/"
         title="Trợ giúp"
         aria-label="Trợ giúp và hướng dẫn"
-        className="flex h-9 w-9 items-center justify-center rounded text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
+        className="flex h-12 w-12 items-center justify-center rounded-xl text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
       >
-        <HelpCircle size={18} strokeWidth={1.75} />
+        <HelpCircle size={22} strokeWidth={1.75} />
       </Link>
 
       {launcherOpen && <AppLauncher onClose={() => setLauncherOpen(false)} />}

@@ -95,7 +95,7 @@ export default function AppLauncher({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-start overflow-y-auto bg-black/50 p-3 sm:py-4 sm:pl-[254px] sm:pr-4"
+      className="fixed inset-0 z-50 flex items-start justify-start overflow-y-auto bg-black/50 p-3 sm:py-4 sm:pl-[292px] sm:pr-4"
       onMouseDown={onClose}
     >
       <div

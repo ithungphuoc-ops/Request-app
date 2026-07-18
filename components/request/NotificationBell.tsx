@@ -80,9 +80,9 @@ export default function NotificationBell() {
         onClick={() => setOpen((v) => !v)}
         title="Thông báo"
         aria-label="Thông báo"
-        className="relative flex h-9 w-9 items-center justify-center rounded text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
+        className="relative flex h-12 w-12 items-center justify-center rounded-xl text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
       >
-        <Bell size={18} strokeWidth={1.75} />
+        <Bell size={22} strokeWidth={1.75} />
         {pendingCount > 0 && (
           <span className="absolute right-0.5 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[var(--color-danger-red)] px-0.5 text-[9px] font-semibold text-white">
             {pendingCount}
