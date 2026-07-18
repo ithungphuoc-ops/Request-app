@@ -123,6 +123,14 @@ export interface RequestHistoryEntry {
   note?: string;
 }
 
+/** Giá trị của trường "file" trong values — path là đường dẫn thật trong
+ * Storage (không phải URL công khai); tải về qua API có kiểm tra quyền. */
+export interface RequestAttachment {
+  name: string;
+  path: string;
+  size: number;
+}
+
 export interface RequestComment {
   id: string;
   authorUid: string;

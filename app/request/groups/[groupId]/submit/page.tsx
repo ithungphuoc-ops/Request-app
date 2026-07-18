@@ -2,7 +2,7 @@
 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Loader2, Paperclip, Plus, Trash2, X } from "lucide-react";
 import { useRequestContext } from "@/context/RequestContext";
 import {
   cancelButtonClass,
@@ -11,7 +11,10 @@ import {
   selectClass,
   textareaClass,
 } from "@/components/shared/form-styles";
-import type { ProposalField, RequestInstance } from "@/lib/types";
+import type { ProposalField, RequestAttachment, RequestInstance } from "@/lib/types";
+
+const MAX_ATTACHMENTS = 6;
+const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10MB
 
 type FieldValues = Record<string, unknown>;
 
@@ -325,11 +328,7 @@ function FieldControl({
       );
     }
     case "file":
-      return (
-        <p className="text-[12px] text-gray-400">
-          Đính kèm tệp tin chưa được hỗ trợ trong bản này.
-        </p>
-      );
+      return <FileFieldControl value={value} onChange={onChange} />;
     case "table":
     case "base_table": {
       const columns = field.tableColumns ?? [];
@@ -421,4 +420,103 @@ function FieldControl({
     default:
       return null;
   }
+}
+
+function FileFieldControl({
+  value,
+  onChange,
+}: {
+  value: unknown;
+  onChange: (value: unknown) => void;
+}) {
+  const attachments = (value as RequestAttachment[]) ?? [];
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleFiles = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
+
+    if (attachments.length + files.length > MAX_ATTACHMENTS) {
+      setError(`Chỉ được đính kèm tối đa ${MAX_ATTACHMENTS} tệp.`);
+      return;
+    }
+    const tooBig = files.find((f) => f.size > MAX_ATTACHMENT_SIZE);
+    if (tooBig) {
+      setError(`Tệp "${tooBig.name}" vượt quá 10MB.`);
+      return;
+    }
+
+    setUploading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      files.forEach((f) => formData.append("files", f));
+      const res = await fetch("/api/uploads", { method: "POST", body: formData });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}) as { error?: string });
+        throw new Error(body.error ?? "Không thể tải tệp lên.");
+      }
+      const data = (await res.json()) as { attachments: RequestAttachment[] };
+      onChange([...attachments, ...data.attachments]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Có lỗi xảy ra.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removeAt = (index: number) => {
+    onChange(attachments.filter((_, i) => i !== index));
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      {attachments.length > 0 && (
+        <ul className="flex flex-col gap-1">
+          {attachments.map((att, index) => (
+            <li
+              key={att.path}
+              className="flex items-center gap-2 rounded border border-[var(--color-border)] px-2.5 py-1.5 text-[12px]"
+            >
+              <Paperclip size={13} className="shrink-0 text-gray-400" />
+              <span className="min-w-0 flex-1 truncate text-gray-700">{att.name}</span>
+              <span className="shrink-0 text-gray-400">
+                {(att.size / 1024 / 1024).toFixed(1)}MB
+              </span>
+              <button
+                type="button"
+                onClick={() => removeAt(index)}
+                aria-label="Xóa tệp"
+                className="shrink-0 text-gray-300 hover:text-[var(--color-danger-red)]"
+              >
+                <X size={13} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {attachments.length < MAX_ATTACHMENTS && (
+        <label className="flex w-fit cursor-pointer items-center gap-1.5 rounded border border-dashed border-[var(--color-border)] px-3 py-1.5 text-[12px] text-[var(--color-action-blue)] hover:bg-blue-50">
+          {uploading ? <Loader2 size={13} className="animate-spin" /> : <Paperclip size={13} />}
+          {uploading ? "Đang tải lên..." : "Thêm tệp đính kèm"}
+          <input
+            type="file"
+            multiple
+            className="hidden"
+            disabled={uploading}
+            onChange={(e) => {
+              handleFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+        </label>
+      )}
+      <p className="text-[11px] text-gray-400">
+        Tối đa {MAX_ATTACHMENTS} tệp, mỗi tệp không quá 10MB.
+      </p>
+      {error && <p className="text-[12px] text-[var(--color-danger-red)]">{error}</p>}
+    </div>
+  );
 }

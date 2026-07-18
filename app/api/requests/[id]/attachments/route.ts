@@ -1,0 +1,56 @@
+import { NextResponse } from "next/server";
+import { getAttachmentsBucket } from "@/lib/firebase/admin";
+import { apiErrorResponse } from "@/lib/http";
+import { canView, loadRequest } from "@/lib/server/requests";
+import { requireSession } from "@/lib/session";
+import type { RequestAttachment } from "@/lib/types";
+
+// Cần Node runtime (không phải Edge) để dùng firebase-admin/storage.
+export const runtime = "nodejs";
+
+/** Chỉ cho tải về đúng path đang thật sự nằm trong values của đề xuất này —
+ * chặn đoán/truy cập path tuỳ ý dù đã qua canView. */
+function collectAttachmentPaths(values: Record<string, unknown>): Set<string> {
+  const paths = new Set<string>();
+  for (const value of Object.values(values)) {
+    if (!Array.isArray(value)) continue;
+    for (const item of value) {
+      const path = (item as Partial<RequestAttachment> | undefined)?.path;
+      if (typeof path === "string") paths.add(path);
+    }
+  }
+  return paths;
+}
+
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const session = await requireSession();
+    const { id } = await params;
+    const found = await loadRequest(id);
+    if (!found) {
+      return NextResponse.json({ error: "Không tìm thấy đề xuất." }, { status: 404 });
+    }
+    if (!canView(found, session.uid, session.role)) {
+      return NextResponse.json(
+        { error: "Bạn không có quyền xem đề xuất này." },
+        { status: 403 },
+      );
+    }
+
+    const path = new URL(request.url).searchParams.get("path");
+    if (!path || !collectAttachmentPaths(found.values).has(path)) {
+      return NextResponse.json({ error: "Không tìm thấy tệp đính kèm." }, { status: 404 });
+    }
+
+    const [signedUrl] = await getAttachmentsBucket()
+      .file(path)
+      .getSignedUrl({ action: "read", expires: Date.now() + 5 * 60 * 1000 });
+
+    return NextResponse.redirect(signedUrl);
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}

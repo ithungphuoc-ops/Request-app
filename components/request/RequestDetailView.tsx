@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Forward, Send, X } from "lucide-react";
+import { Check, Forward, Paperclip, Send, X } from "lucide-react";
 import RequestStatusBadge from "@/components/request/RequestStatusBadge";
 import ForwardModal from "@/components/request/ForwardModal";
 import { canApproverAct } from "@/lib/approval-logic";
 import { fieldDataTypeLabels } from "@/lib/types";
-import type { RequestInstance, TaggedUser } from "@/lib/types";
+import type { RequestAttachment, RequestInstance, TaggedUser } from "@/lib/types";
 
 function formatValue(value: unknown): string {
   if (value === undefined || value === null || value === "") return "—";
@@ -240,6 +240,7 @@ export default function RequestDetailView({
                 .sort((a, b) => a.order - b.order)
                 .map((field, index) => {
                   const isTable = field.dataType === "table" || field.dataType === "base_table";
+                  const isFile = field.dataType === "file";
                   return (
                     <div key={field.id}>
                       <dt className="text-gray-400">
@@ -252,6 +253,11 @@ export default function RequestDetailView({
                         <TableValueView
                           columns={field.tableColumns ?? []}
                           rows={(request.values[field.id] as string[][]) ?? []}
+                        />
+                      ) : isFile ? (
+                        <FileValueView
+                          requestId={request.id}
+                          attachments={(request.values[field.id] as RequestAttachment[]) ?? []}
                         />
                       ) : (
                         <dd className="font-medium text-gray-800">
@@ -402,6 +408,36 @@ export default function RequestDetailView({
         <ForwardModal onClose={() => setForwardOpen(false)} onConfirm={forward} />
       )}
     </div>
+  );
+}
+
+function FileValueView({
+  requestId,
+  attachments,
+}: {
+  requestId: string;
+  attachments: RequestAttachment[];
+}) {
+  if (attachments.length === 0) {
+    return <p className="font-medium text-gray-800">—</p>;
+  }
+  return (
+    <ul className="mt-1 flex flex-col gap-1">
+      {attachments.map((att) => (
+        <li key={att.path}>
+          <a
+            href={`/api/requests/${requestId}/attachments?path=${encodeURIComponent(att.path)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 text-[13px] text-[var(--color-action-blue)] hover:underline"
+          >
+            <Paperclip size={13} className="shrink-0" />
+            <span className="truncate">{att.name}</span>
+            <span className="shrink-0 text-gray-400">({(att.size / 1024 / 1024).toFixed(1)}MB)</span>
+          </a>
+        </li>
+      ))}
+    </ul>
   );
 }
 
