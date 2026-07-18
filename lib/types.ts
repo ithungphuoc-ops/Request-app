@@ -123,6 +123,15 @@ export interface RequestHistoryEntry {
   note?: string;
 }
 
+export interface RequestComment {
+  id: string;
+  authorUid: string;
+  authorName: string;
+  avatarInitial: string;
+  text: string;
+  at: string;
+}
+
 /**
  * Một đề xuất cụ thể đã gửi từ một nhóm (ProposalGroup), hoặc "Đề xuất trực
  * tiếp" (groupId null) — xem design.md Decision 10. Chụp lại field và người
@@ -155,6 +164,7 @@ export interface RequestInstance {
    */
   deadlineAt: string | null;
   history: RequestHistoryEntry[];
+  comments: RequestComment[];
 }
 
 export type ModalWindowStatus =
@@ -175,7 +185,7 @@ export type PermissionAssignmentStatus =
 
 export type ListLoadStatus = "loading" | "loaded" | "empty" | "error";
 
-export type RequestListScope = "all" | "sent-to-me" | "mine" | "following";
+export type RequestListScope = "all" | "sent-to-me" | "mine" | "following" | "group";
 
 export interface AuditEntry {
   id: string;

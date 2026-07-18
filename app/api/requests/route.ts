@@ -5,6 +5,7 @@ import { apiErrorResponse } from "@/lib/http";
 import { isWithinUsedForScope } from "@/lib/permissions";
 import {
   buildInitialApprovers,
+  canView,
   computeDeadline,
   findMissingRequiredFields,
   resolveApproverSteps,
@@ -76,6 +77,22 @@ export async function GET(request: Request) {
 
       const requests = all
         .filter(filterFn)
+        .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+      return NextResponse.json({ requests });
+    }
+
+    // Danh sách đề xuất của MỘT nhóm cụ thể (bấm tên nhóm ở sidebar) — vẫn
+    // áp dụng đúng quy tắc canView, không lộ đề xuất người khác cho người
+    // không liên quan (admin/owner thấy hết nhờ canView tự bao gồm role).
+    if (scope === "group") {
+      const groupId = new URL(request.url).searchParams.get("groupId");
+      if (!groupId) {
+        return NextResponse.json({ error: "Thiếu groupId." }, { status: 400 });
+      }
+      const snap = await adminDb.collection("requests").where("groupId", "==", groupId).get();
+      const requests = snap.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }) as RequestInstance)
+        .filter((r) => canView(r, session.uid, session.role))
         .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
       return NextResponse.json({ requests });
     }
@@ -196,6 +213,7 @@ export async function POST(request: Request) {
       history: [
         { at: nowIso, actor: session.name, action: isDraft ? "Đã lưu nháp" : "Đã gửi đề xuất" },
       ],
+      comments: [],
     };
     await requestRef.set(newRequest);
 

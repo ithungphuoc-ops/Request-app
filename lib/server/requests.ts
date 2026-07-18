@@ -1,7 +1,36 @@
 import "server-only";
 import type { ApproverState } from "@/lib/approval-logic";
+import { adminDb } from "@/lib/firebase/admin";
 import { getHpcoreDb } from "@/lib/hpcore";
-import type { ApproverStepDef, ProposalField, ProposalGroup, TaggedUser } from "@/lib/types";
+import { canManageGroupsAtAppScope, type Role } from "@/lib/permissions";
+import type {
+  ApproverStepDef,
+  ProposalField,
+  ProposalGroup,
+  RequestInstance,
+  TaggedUser,
+} from "@/lib/types";
+
+export async function loadRequest(id: string): Promise<RequestInstance | null> {
+  const snap = await adminDb.collection("requests").doc(id).get();
+  if (!snap.exists) return null;
+  return { id: snap.id, ...snap.data() } as RequestInstance;
+}
+
+/**
+ * Nháp chỉ chủ đề xuất xem/sửa được (§ Requirement "Lưu nháp"). Đề xuất đã
+ * gửi thì người tạo, người duyệt, người theo dõi hoặc owner/app_admin xem
+ * được — không rò rỉ nội dung cho người không liên quan. Dùng chung cho cả
+ * GET đề xuất và POST bình luận (không cho bình luận trên đề xuất mình
+ * không có quyền xem).
+ */
+export function canView(req: RequestInstance, uid: string, role: Role): boolean {
+  const isOwner = req.submittedBy.uid === uid;
+  if (req.status === "draft") return isOwner;
+  const isApprover = req.approversSnapshot.some((a) => a.id === uid);
+  const isFollower = req.followers.some((f) => f.id === uid);
+  return isOwner || isApprover || isFollower || canManageGroupsAtAppScope(role);
+}
 
 export function isEmptyValue(value: unknown): boolean {
   if (value === undefined || value === null) return true;

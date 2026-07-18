@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { Plus } from "lucide-react";
 import RequestStatusBadge from "@/components/request/RequestStatusBadge";
 import RequestDetailView from "@/components/request/RequestDetailView";
+import { useRequestContext } from "@/context/RequestContext";
+import { primaryButtonClass } from "@/components/shared/form-styles";
 import type { ListLoadStatus, RequestInstance, RequestListScope } from "@/lib/types";
 
 const scopeLabels: Record<RequestListScope, string> = {
@@ -12,6 +15,7 @@ const scopeLabels: Record<RequestListScope, string> = {
   "sent-to-me": "Gửi đến tôi",
   mine: "Tôi gửi đi",
   following: "Đang theo dõi",
+  group: "Nhóm đề xuất",
 };
 
 function draftLinkFor(r: RequestInstance): string {
@@ -32,7 +36,10 @@ function RequestListPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const scope = (searchParams.get("scope") as RequestListScope) || "all";
+  const groupId = searchParams.get("groupId");
   const selectedId = searchParams.get("id");
+  const { getGroupById } = useRequestContext();
+  const group = scope === "group" && groupId ? getGroupById(groupId) : undefined;
 
   const [requests, setRequests] = useState<RequestInstance[]>([]);
   const [status, setStatus] = useState<ListLoadStatus>("loading");
@@ -40,7 +47,9 @@ function RequestListPageInner() {
 
   const load = () => {
     setStatus("loading");
-    fetch(`/api/requests?scope=${scope}`)
+    const query =
+      scope === "group" && groupId ? `scope=group&groupId=${groupId}` : `scope=${scope}`;
+    fetch(`/api/requests?${query}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("fetch failed"))))
       .then((data: { requests: RequestInstance[] }) => {
         setRequests(data.requests ?? []);
@@ -49,7 +58,7 @@ function RequestListPageInner() {
       .catch(() => setStatus("error"));
   };
 
-  useEffect(load, [scope]);
+  useEffect(load, [scope, groupId]);
 
   useEffect(() => {
     fetch("/api/session")
@@ -65,15 +74,30 @@ function RequestListPageInner() {
   );
 
   const selectRequest = (id: string) => {
-    router.replace(`/request/list?scope=${scope}&id=${id}`);
+    const query = scope === "group" && groupId ? `scope=group&groupId=${groupId}` : `scope=${scope}`;
+    router.replace(`/request/list?${query}&id=${id}`);
   };
 
   return (
     <div className="flex h-full">
       <div className="flex w-[320px] shrink-0 flex-col border-r border-[var(--color-border)]">
-        <div className="border-b border-[var(--color-border)] px-4 py-3">
-          <h1 className="text-[16px] font-semibold text-gray-900">Danh sách đề xuất</h1>
-          <p className="text-[12px] text-gray-400">{scopeLabels[scope] ?? scope}</p>
+        <div className="flex items-start justify-between gap-2 border-b border-[var(--color-border)] px-4 py-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-[16px] font-semibold text-gray-900">
+              {scope === "group" ? (group?.name ?? "Nhóm đề xuất") : "Danh sách đề xuất"}
+            </h1>
+            <p className="truncate text-[12px] text-gray-400">
+              {scope === "group" ? "Đề xuất trong nhóm này" : (scopeLabels[scope] ?? scope)}
+            </p>
+          </div>
+          {scope === "group" && groupId && (
+            <Link
+              href={`/request/groups/${groupId}/submit`}
+              className={`${primaryButtonClass} shrink-0 gap-1 px-3`}
+            >
+              <Plus size={14} /> Tạo đề xuất
+            </Link>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto">

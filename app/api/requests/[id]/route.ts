@@ -1,35 +1,17 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { apiErrorResponse } from "@/lib/http";
-import { canManageGroupsAtAppScope, type Role } from "@/lib/permissions";
 import {
   buildInitialApprovers,
+  canView,
   computeDeadline,
   findMissingRequiredFields,
+  loadRequest,
   resolveApproverSteps,
   toProposalGroup,
 } from "@/lib/server/requests";
 import { requireSession } from "@/lib/session";
 import type { RequestInstance, TaggedUser } from "@/lib/types";
-
-async function loadRequest(id: string): Promise<RequestInstance | null> {
-  const snap = await adminDb.collection("requests").doc(id).get();
-  if (!snap.exists) return null;
-  return { id: snap.id, ...snap.data() } as RequestInstance;
-}
-
-/**
- * Nháp chỉ chủ đề xuất xem/sửa được (§ Requirement "Lưu nháp"). Đề xuất đã
- * gửi thì người tạo, người duyệt, người theo dõi hoặc owner/app_admin xem
- * được — không rò rỉ nội dung cho người không liên quan.
- */
-function canView(req: RequestInstance, uid: string, role: Role): boolean {
-  const isOwner = req.submittedBy.uid === uid;
-  if (req.status === "draft") return isOwner;
-  const isApprover = req.approversSnapshot.some((a) => a.id === uid);
-  const isFollower = req.followers.some((f) => f.id === uid);
-  return isOwner || isApprover || isFollower || canManageGroupsAtAppScope(role);
-}
 
 export async function GET(
   _request: Request,

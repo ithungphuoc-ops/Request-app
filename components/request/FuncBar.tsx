@@ -49,10 +49,10 @@ export default function FuncBar() {
   const { session, isAdmin } = useCurrentSession();
 
   const pinnedGroups = categoryGroups.flatMap((cat) => cat.groups).filter((g) => g.pinned);
-  // Admin/owner cần vào thiết lập (mẫu biểu, người duyệt...) trước khi dùng
-  // được — nhân viên chỉ gửi đề xuất nên vào thẳng form.
-  const groupHref = (groupId: string) =>
-    isAdmin ? `/request/groups/${groupId}/general` : `/request/groups/${groupId}/submit`;
+  // Bấm tên nhóm ở sidebar → xem danh sách đề xuất đã gửi trong nhóm đó
+  // (kiểu Base thật), áp dụng cho mọi vai trò. Admin/owner vẫn vào thiết lập
+  // nhóm (mẫu biểu, người duyệt...) qua "Tất cả nhóm đề xuất" → GroupRow.
+  const groupHref = (groupId: string) => `/request/list?scope=group&groupId=${groupId}`;
 
   return (
     <nav
