@@ -1,7 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
 import { BarChart3, Grid3x3, HelpCircle, Home, Search, Settings } from "lucide-react";
+import AppLauncher from "@/components/request/AppLauncher";
 import NotificationBell from "@/components/request/NotificationBell";
 import { useCurrentSession } from "@/lib/useCurrentSession";
 
@@ -13,19 +16,22 @@ const iconItems = [
 
 export default function AppBar() {
   const { isAdmin } = useCurrentSession();
+  const [launcherOpen, setLauncherOpen] = useState(false);
 
   return (
     <nav
       aria-label="Thanh ứng dụng"
       className="flex h-full w-[42px] shrink-0 flex-col items-center bg-[var(--color-appbar-bg)] py-3"
     >
-      <Link
-        href="/"
-        aria-label="Base Request"
-        className="mb-3 flex h-8 w-8 items-center justify-center rounded bg-[var(--color-action-blue)] text-[13px] font-bold text-white"
+      <button
+        type="button"
+        onClick={() => setLauncherOpen(true)}
+        aria-label="Mở danh sách ứng dụng HPCons"
+        title="Mở danh sách ứng dụng"
+        className="mb-3 flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded bg-white"
       >
-        R
-      </Link>
+        <Image src="/logo.png" alt="HPCons" width={32} height={32} className="h-full w-full object-contain" />
+      </button>
 
       <div className="flex flex-1 flex-col items-center gap-1">
         <Link
@@ -62,14 +68,15 @@ export default function AppBar() {
           </Link>
         )}
 
-        <Link
-          href="/"
+        <button
+          type="button"
+          onClick={() => setLauncherOpen(true)}
           title="Ứng dụng khác"
           aria-label="Mở danh sách ứng dụng khác"
           className="flex h-9 w-9 items-center justify-center rounded text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
         >
           <Grid3x3 size={18} strokeWidth={1.75} />
-        </Link>
+        </button>
       </div>
 
       <Link
@@ -80,6 +87,8 @@ export default function AppBar() {
       >
         <HelpCircle size={18} strokeWidth={1.75} />
       </Link>
+
+      {launcherOpen && <AppLauncher onClose={() => setLauncherOpen(false)} />}
     </nav>
   );
 }
