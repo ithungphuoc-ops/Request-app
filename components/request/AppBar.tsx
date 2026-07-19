@@ -2,11 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
-import { BarChart3, Grid3x3, HelpCircle, Home, Search, Settings } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BarChart3, Grid3x3, HelpCircle, Home, Menu, Moon, Search, Settings, Sun } from "lucide-react";
 import AppLauncher from "@/components/request/AppLauncher";
 import NotificationBell from "@/components/request/NotificationBell";
+import { useRequestContext } from "@/context/RequestContext";
 import { useCurrentSession } from "@/lib/useCurrentSession";
+import { applyTheme, getStoredTheme, type Theme } from "@/lib/theme";
 
 const iconItems = [
   { key: "home", label: "Trang chủ", icon: Home, href: "/request" },
@@ -15,7 +17,21 @@ const iconItems = [
 
 export default function AppBar() {
   const { isAdmin } = useCurrentSession();
+  const { mobileNavOpen, setMobileNavOpen } = useRequestContext();
   const [launcherOpen, setLauncherOpen] = useState(false);
+  const [theme, setTheme] = useState<Theme>("light");
+
+  useEffect(() => {
+    const stored = getStoredTheme();
+    setTheme(stored);
+    applyTheme(stored);
+  }, []);
+
+  const toggleTheme = () => {
+    const next: Theme = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    applyTheme(next);
+  };
 
   return (
     <nav
@@ -30,6 +46,16 @@ export default function AppBar() {
         className="mb-2 flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white"
       >
         <Image src="/logo.png" alt="HPCons" width={40} height={40} className="h-full w-full object-contain" />
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setMobileNavOpen(!mobileNavOpen)}
+        aria-label={mobileNavOpen ? "Đóng menu điều hướng" : "Mở menu điều hướng"}
+        aria-expanded={mobileNavOpen}
+        className="mb-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)] lg:hidden"
+      >
+        <Menu size={20} strokeWidth={1.75} />
       </button>
 
       <div className="flex flex-1 flex-col items-center gap-1.5">
@@ -87,6 +113,16 @@ export default function AppBar() {
           <Grid3x3 size={22} strokeWidth={1.75} />
         </button>
       </div>
+
+      <button
+        type="button"
+        onClick={toggleTheme}
+        title={theme === "dark" ? "Chuyển sang giao diện sáng" : "Chuyển sang giao diện tối"}
+        aria-label="Chuyển đổi giao diện sáng/tối"
+        className="flex h-12 w-12 items-center justify-center rounded-xl text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
+      >
+        {theme === "dark" ? <Sun size={20} strokeWidth={1.75} /> : <Moon size={20} strokeWidth={1.75} />}
+      </button>
 
       <Link
         href="/"

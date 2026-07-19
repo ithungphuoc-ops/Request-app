@@ -41,6 +41,9 @@ interface RequestContextValue {
   addFieldModalGroupId: string | null;
   openAddFieldModal: (groupId: string) => void;
   closeAddFieldModal: () => void;
+  /** Menu điều hướng (FuncBar) dạng trượt trên màn hình nhỏ — ẩn theo mặc định. */
+  mobileNavOpen: boolean;
+  setMobileNavOpen: (open: boolean) => void;
 }
 
 const RequestContext = createContext<RequestContextValue | null>(null);
@@ -73,6 +76,7 @@ export function RequestProvider({ children }: { children: React.ReactNode }) {
   const [addFieldModalGroupId, setAddFieldModalGroupId] = useState<string | null>(
     null,
   );
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const refetchGroups = useCallback(async () => {
     const res = await fetch("/api/groups");
@@ -306,6 +310,8 @@ export function RequestProvider({ children }: { children: React.ReactNode }) {
     addFieldModalGroupId,
     openAddFieldModal: (groupId: string) => setAddFieldModalGroupId(groupId),
     closeAddFieldModal: () => setAddFieldModalGroupId(null),
+    mobileNavOpen,
+    setMobileNavOpen,
   };
 
   return (

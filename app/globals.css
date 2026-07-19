@@ -1,8 +1,39 @@
 @import "tailwindcss";
 
+/* Bật biến thể "dark:" theo thuộc tính data-theme do người dùng tự chọn
+   (không chỉ theo prefers-color-scheme của hệ điều hành) — xem nút chuyển
+   giao diện sáng/tối ở AppBar. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
   --background: #f4f5f7;
   --foreground: #222222;
+}
+
+[data-theme="dark"] {
+  --background: #16181c;
+  --foreground: #e7e9ec;
+
+  --color-appbar-bg: #101114;
+  --color-appbar-text: #8b8f98;
+  --color-appbar-text-active: #ffffff;
+
+  --color-funcbar-bg: #1c1f24;
+  --color-funcbar-active-bg: #262a31;
+  --color-funcbar-border: #2a2e35;
+
+  --color-page-bg: #16181c;
+  --color-card-bg: #1c1f24;
+  --color-border: #2a2e35;
+  --color-text-primary: #e7e9ec;
+  --color-text-secondary: #9199a3;
+
+  --color-action-blue: #5aa3ff;
+  --color-confirm-green: #4ade80;
+  --color-danger-red: #f87171;
+  --color-category-header-bg: #1c2a18;
+  --color-category-header-text: #5fd45f;
+  --color-cancel-gray: #2a2e35;
 }
 
 @theme inline {

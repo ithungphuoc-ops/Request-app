@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
 import {
   BarChart3,
   ChevronLeft,
@@ -47,7 +48,7 @@ export default function FuncBar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentScope = searchParams.get("scope") ?? "all";
-  const { categoryGroups, openCreateGroup } = useRequestContext();
+  const { categoryGroups, openCreateGroup, mobileNavOpen, setMobileNavOpen } = useRequestContext();
   const { session, isAdmin } = useCurrentSession();
 
   const pinnedGroups = categoryGroups.flatMap((cat) => cat.groups).filter((g) => g.pinned);
@@ -56,11 +57,27 @@ export default function FuncBar() {
   // nhóm (mẫu biểu, người duyệt...) qua "Tất cả nhóm đề xuất" → GroupRow.
   const groupHref = (groupId: string) => `/request/list?scope=group&groupId=${groupId}`;
 
+  // Màn hình nhỏ: menu ẩn mặc định, mở dạng trượt qua nút hamburger ở AppBar —
+  // tự đóng lại mỗi khi điều hướng sang trang khác.
+  useEffect(() => {
+    setMobileNavOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
   return (
-    <nav
-      aria-label="Thanh chức năng Base Request"
-      className="flex h-full w-[200px] shrink-0 flex-col overflow-y-auto border-r border-[var(--color-funcbar-border)] bg-[var(--color-funcbar-bg)] py-3"
-    >
+    <>
+      {mobileNavOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+          onClick={() => setMobileNavOpen(false)}
+        />
+      )}
+      <nav
+        aria-label="Thanh chức năng Base Request"
+        className={`z-40 h-full w-[200px] shrink-0 flex-col overflow-y-auto border-r border-[var(--color-funcbar-border)] bg-[var(--color-funcbar-bg)] py-3 lg:static lg:flex ${
+          mobileNavOpen ? "fixed inset-y-0 left-20 flex" : "hidden"
+        }`}
+      >
       <Link
         href="/"
         className="mx-2 mb-2 flex items-center gap-2 rounded px-2 py-2 text-[12px] text-[var(--color-text-secondary)] hover:bg-[var(--color-funcbar-active-bg)]"
@@ -207,6 +224,7 @@ export default function FuncBar() {
           })}
         </div>
       </div>
-    </nav>
+      </nav>
+    </>
   );
 }
