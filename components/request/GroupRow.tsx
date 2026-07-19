@@ -6,7 +6,17 @@ import { Pencil, Send, Star } from "lucide-react";
 import { useRequestContext } from "@/context/RequestContext";
 import { approvalFlowLabels, type ProposalGroup } from "@/lib/types";
 
-export default function GroupRow({ group, index }: { group: ProposalGroup; index: number }) {
+export default function GroupRow({
+  group,
+  index,
+  selected,
+  onToggleSelect,
+}: {
+  group: ProposalGroup;
+  index: number;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
+}) {
   const { toggleGroupStatus, toggleGroupPinned } = useRequestContext();
   const [toggling, setToggling] = useState(false);
   const [toggleError, setToggleError] = useState<string | null>(null);
@@ -25,6 +35,14 @@ export default function GroupRow({ group, index }: { group: ProposalGroup; index
 
   return (
     <div className="flex min-h-[48px] items-center gap-3 border-b border-gray-100 px-4 py-2 text-[13px] last:border-0 hover:bg-gray-50">
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={() => onToggleSelect(group.id)}
+        aria-label={`Chọn nhóm ${group.name}`}
+        className="h-4 w-4 shrink-0 rounded border-[var(--color-border)]"
+      />
+
       <span className="w-6 shrink-0 text-center text-gray-400">{index + 1}</span>
 
       <button

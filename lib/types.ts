@@ -201,6 +201,22 @@ export type ListLoadStatus = "loading" | "loaded" | "empty" | "error";
 
 export type RequestListScope = "all" | "sent-to-me" | "mine" | "following" | "group";
 
+export interface GroupHistoryChange {
+  field: string;
+  before: string;
+  after: string;
+}
+
+export interface GroupHistoryEntry {
+  id: string;
+  groupId: string;
+  groupName: string;
+  actor: string;
+  at: string;
+  action: string;
+  changes: GroupHistoryChange[];
+}
+
 export interface AuditEntry {
   id: string;
   actor: string;

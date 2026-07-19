@@ -1,5 +1,6 @@
 import "server-only";
 import { adminDb } from "@/lib/firebase/admin";
+import type { GroupHistoryChange } from "@/lib/types";
 
 /** Đảm bảo tồn tại tài liệu `categories` cho tên danh mục này, tạo mới nếu chưa có. */
 export async function ensureCategoryExists(categoryName: string): Promise<void> {
@@ -11,5 +12,61 @@ export async function ensureCategoryExists(categoryName: string): Promise<void> 
   await categoriesRef.add({
     code: String(count + 1).padStart(2, "0"),
     name: categoryName,
+  });
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  name: "Tên nhóm",
+  description: "Mô tả",
+  category: "Phân loại",
+  status: "Trạng thái",
+  approvalFlow: "Quy trình xử lý",
+  slaHours: "Thời hạn xử lý (giờ)",
+  notifyManager: "Báo quản lý trực tiếp",
+  usedFor: "Phạm vi sử dụng",
+  approverSteps: "Người xét duyệt",
+  followers: "Người theo dõi",
+  fields: "Mẫu biểu (trường dữ liệu)",
+  pinned: "Đánh dấu quan trọng",
+};
+
+function toDisplay(value: unknown): string {
+  if (value === undefined || value === null) return "—";
+  if (typeof value === "boolean") return value ? "Có" : "Không";
+  if (Array.isArray(value)) return value.length === 0 ? "Trống" : `${value.length} mục`;
+  return String(value);
+}
+
+/** So sánh giá trị cũ/mới của từng trường trong patch, trả về danh sách thay
+ * đổi thật sự (bỏ qua trường không đổi giá trị). */
+export function diffGroupPatch(
+  before: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): GroupHistoryChange[] {
+  return Object.entries(patch)
+    .filter(([key, value]) => JSON.stringify(before[key]) !== JSON.stringify(value))
+    .map(([key, value]) => ({
+      field: FIELD_LABELS[key] ?? key,
+      before: toDisplay(before[key]),
+      after: toDisplay(value),
+    }));
+}
+
+/** Ghi 1 dòng lịch sử chỉnh sửa nhóm — bỏ qua nếu không có thay đổi thật. */
+export async function recordGroupHistory(params: {
+  groupId: string;
+  groupName: string;
+  actor: string;
+  action: string;
+  changes: GroupHistoryChange[];
+}): Promise<void> {
+  if (params.changes.length === 0) return;
+  await adminDb.collection("groupHistory").add({
+    groupId: params.groupId,
+    groupName: params.groupName,
+    actor: params.actor,
+    at: new Date().toISOString(),
+    action: params.action,
+    changes: params.changes,
   });
 }

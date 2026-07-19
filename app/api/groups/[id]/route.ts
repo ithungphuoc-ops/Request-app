@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { apiErrorResponse } from "@/lib/http";
-import { ensureCategoryExists } from "@/lib/server/groups";
+import { diffGroupPatch, ensureCategoryExists, recordGroupHistory } from "@/lib/server/groups";
 import { requireWriteAccess } from "@/lib/session";
 import type { ProposalGroup } from "@/lib/types";
 
@@ -10,7 +10,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    await requireWriteAccess();
+    const session = await requireWriteAccess();
     const { id } = await params;
     const patch = (await request.json()) as Partial<Omit<ProposalGroup, "id">>;
 
@@ -22,6 +22,7 @@ export async function PATCH(
         { status: 404 },
       );
     }
+    const before = snap.data() as Omit<ProposalGroup, "id">;
 
     if (patch.category) {
       await ensureCategoryExists(patch.category.trim());
@@ -29,9 +30,19 @@ export async function PATCH(
     }
 
     await ref.update({ ...patch });
+
+    const changes = diffGroupPatch(before as unknown as Record<string, unknown>, patch);
+    await recordGroupHistory({
+      groupId: id,
+      groupName: (patch.name as string | undefined) ?? before.name,
+      actor: session.name,
+      action: "Chỉnh sửa nhóm",
+      changes,
+    });
+
     const group: ProposalGroup = {
       id: ref.id,
-      ...(snap.data() as Omit<ProposalGroup, "id">),
+      ...before,
       ...patch,
     };
     return NextResponse.json({ group });

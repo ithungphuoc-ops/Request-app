@@ -1,10 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Layers, Plus, Search } from "lucide-react";
+import { ChevronDown, Layers, Mail, MailX, Plus, Search, UserCog, X as XIcon } from "lucide-react";
 import { useRequestContext, type StatusFilter } from "@/context/RequestContext";
 import GroupCategoryCard from "@/components/request/GroupCategoryCard";
 import RequireAdminRole from "@/components/request/RequireAdminRole";
+import Modal from "@/components/shared/Modal";
+import TagUserInput from "@/components/shared/TagUserInput";
+import {
+  cancelButtonClass,
+  confirmButtonClass,
+  inputClass,
+} from "@/components/shared/form-styles";
+import type { ApproverStepDef, TaggedUser } from "@/lib/types";
 import Link from "next/link";
 
 const filterTabs: { key: StatusFilter; label: string }[] = [
@@ -29,9 +37,14 @@ function GroupsPageInner() {
     searchTerm,
     setSearchTerm,
     openCreateGroup,
+    updateGroup,
+    getGroupById,
   } = useRequestContext();
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const createMenuRef = useRef<HTMLDivElement>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [slaModalOpen, setSlaModalOpen] = useState(false);
+  const [approverModalOpen, setApproverModalOpen] = useState(false);
 
   useEffect(() => {
     if (!createMenuOpen) return;
@@ -43,6 +56,42 @@ function GroupsPageInner() {
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, [createMenuOpen]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const bulkSetEmail = (enabled: boolean) => {
+    selectedIds.forEach((id) => updateGroup(id, { notifyManager: enabled }));
+    clearSelection();
+  };
+
+  const applySla = (hours: number | null) => {
+    selectedIds.forEach((id) => updateGroup(id, { slaHours: hours }));
+    setSlaModalOpen(false);
+    clearSelection();
+  };
+
+  const applyReplaceApprover = (from: TaggedUser, to: TaggedUser) => {
+    selectedIds.forEach((id) => {
+      const group = getGroupById(id);
+      if (!group) return;
+      // Chỉ thay bước "người cố định" trùng đúng người cần đổi — không đụng
+      // tới bước tự động lấy quản lý trực tiếp/vai trò (§1.5 quy tắc).
+      const nextSteps: ApproverStepDef[] = group.approverSteps.map((step) =>
+        step.kind === "fixed" && step.user.id === from.id ? { kind: "fixed", user: to } : step,
+      );
+      updateGroup(id, { approverSteps: nextSteps });
+    });
+    setApproverModalOpen(false);
+    clearSelection();
+  };
 
   return (
     <div className="px-8 py-6">
@@ -124,6 +173,52 @@ function GroupsPageInner() {
         </div>
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className="sticky top-0 z-10 mt-4 flex items-center gap-3 rounded-[3px] border border-[var(--color-action-blue)] bg-blue-50 px-4 py-2.5">
+          <span className="text-[13px] font-medium text-gray-700">
+            Đã chọn {selectedIds.size} nhóm
+          </span>
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => bulkSetEmail(true)}
+              className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-border)] bg-white px-3 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <Mail size={13} /> Bật thông báo email
+            </button>
+            <button
+              type="button"
+              onClick={() => bulkSetEmail(false)}
+              className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-border)] bg-white px-3 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <MailX size={13} /> Tắt thông báo email
+            </button>
+            <button
+              type="button"
+              onClick={() => setSlaModalOpen(true)}
+              className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-border)] bg-white px-3 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Đặt thời hạn xử lý
+            </button>
+            <button
+              type="button"
+              onClick={() => setApproverModalOpen(true)}
+              className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-border)] bg-white px-3 text-[12px] font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <UserCog size={13} /> Thay người duyệt
+            </button>
+            <button
+              type="button"
+              onClick={clearSelection}
+              aria-label="Bỏ chọn tất cả"
+              className="flex h-8 w-8 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+            >
+              <XIcon size={14} />
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="mt-6">
         {filteredCategoryGroups.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 rounded-[3px] border border-dashed border-[var(--color-border)] bg-white py-16">
@@ -140,10 +235,139 @@ function GroupsPageInner() {
           </div>
         ) : (
           filteredCategoryGroups.map((category) => (
-            <GroupCategoryCard key={category.id} category={category} />
+            <GroupCategoryCard
+              key={category.id}
+              category={category}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+            />
           ))
         )}
       </div>
+
+      {slaModalOpen && (
+        <BulkSlaModal onClose={() => setSlaModalOpen(false)} onConfirm={applySla} />
+      )}
+      {approverModalOpen && (
+        <BulkReplaceApproverModal
+          onClose={() => setApproverModalOpen(false)}
+          onConfirm={applyReplaceApprover}
+        />
+      )}
     </div>
+  );
+}
+
+function BulkSlaModal({
+  onClose,
+  onConfirm,
+}: {
+  onClose: () => void;
+  onConfirm: (hours: number | null) => void;
+}) {
+  const [hours, setHours] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const handleConfirm = () => {
+    if (hours.trim() === "") {
+      onConfirm(null);
+      return;
+    }
+    const value = Number(hours);
+    if (!Number.isFinite(value) || value < 0) {
+      setError("Thời hạn phải là số giờ hợp lệ (>= 0), hoặc để trống để bỏ thời hạn.");
+      return;
+    }
+    onConfirm(value);
+  };
+
+  return (
+    <Modal
+      title="Đặt thời hạn xử lý hàng loạt"
+      width={400}
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" onClick={onClose} className={cancelButtonClass}>
+            Hủy bỏ
+          </button>
+          <button type="button" onClick={handleConfirm} className={confirmButtonClass}>
+            Áp dụng
+          </button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-2">
+        <label className="text-[13px] font-medium text-gray-700">Thời hạn (giờ)</label>
+        <input
+          type="number"
+          min={0}
+          className={inputClass}
+          value={hours}
+          onChange={(e) => setHours(e.target.value)}
+          placeholder="Để trống = không đặt thời hạn"
+        />
+        {error && <p className="text-[12px] text-[var(--color-danger-red)]">{error}</p>}
+      </div>
+    </Modal>
+  );
+}
+
+function BulkReplaceApproverModal({
+  onClose,
+  onConfirm,
+}: {
+  onClose: () => void;
+  onConfirm: (from: TaggedUser, to: TaggedUser) => void;
+}) {
+  const [from, setFrom] = useState<TaggedUser[]>([]);
+  const [to, setTo] = useState<TaggedUser[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleConfirm = () => {
+    if (from.length === 0 || to.length === 0) {
+      setError("Chọn cả người bị thay và người thay thế.");
+      return;
+    }
+    onConfirm(from[0], to[0]);
+  };
+
+  return (
+    <Modal
+      title="Thay người duyệt hàng loạt"
+      width={440}
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" onClick={onClose} className={cancelButtonClass}>
+            Hủy bỏ
+          </button>
+          <button type="button" onClick={handleConfirm} className={confirmButtonClass}>
+            Áp dụng
+          </button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <p className="text-[12px] text-gray-500">
+          Chỉ áp dụng cho bước duyệt &quot;người cố định&quot; trùng đúng người bị thay — không
+          đổi bước tự động lấy quản lý trực tiếp/vai trò. Chỉ ảnh hưởng đề xuất tạo SAU khi
+          áp dụng.
+        </p>
+        <div>
+          <label className="mb-1 block text-[13px] font-medium text-gray-700">
+            Người bị thay <span className="text-[var(--color-danger-red)]">*</span>
+          </label>
+          <TagUserInput value={from} onChange={(users) => setFrom(users.slice(-1))} />
+        </div>
+        <div>
+          <label className="mb-1 block text-[13px] font-medium text-gray-700">
+            Người thay thế <span className="text-[var(--color-danger-red)]">*</span>
+          </label>
+          <TagUserInput value={to} onChange={(users) => setTo(users.slice(-1))} />
+        </div>
+        {error && <p className="text-[12px] text-[var(--color-danger-red)]">{error}</p>}
+      </div>
+    </Modal>
   );
 }

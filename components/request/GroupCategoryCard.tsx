@@ -5,7 +5,15 @@ import { useRequestContext } from "@/context/RequestContext";
 import GroupRow from "@/components/request/GroupRow";
 import type { CategoryGroup } from "@/lib/types";
 
-export default function GroupCategoryCard({ category }: { category: CategoryGroup }) {
+export default function GroupCategoryCard({
+  category,
+  selectedIds,
+  onToggleSelect,
+}: {
+  category: CategoryGroup;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+}) {
   const { collapsedCategoryIds, toggleCategoryCollapsed } = useRequestContext();
   const collapsed = collapsedCategoryIds.has(category.id);
 
@@ -33,6 +41,7 @@ export default function GroupCategoryCard({ category }: { category: CategoryGrou
       {!collapsed && (
         <div>
           <div className="flex items-center gap-3 bg-[var(--color-category-header-bg)] px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--color-category-header-text)]">
+            <span className="w-4 shrink-0" />
             <span className="w-6 shrink-0 text-center">STT</span>
             <span className="w-[15px] shrink-0" />
             <span className="min-w-0 flex-[2]">Tên nhóm</span>
@@ -42,7 +51,13 @@ export default function GroupCategoryCard({ category }: { category: CategoryGrou
             <span className="w-8 shrink-0" />
           </div>
           {category.groups.map((group, index) => (
-            <GroupRow key={group.id} group={group} index={index} />
+            <GroupRow
+              key={group.id}
+              group={group}
+              index={index}
+              selected={selectedIds.has(group.id)}
+              onToggleSelect={onToggleSelect}
+            />
           ))}
         </div>
       )}
