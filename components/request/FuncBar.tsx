@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
+  BarChart3,
   ChevronLeft,
   Eye,
   FileClock,
@@ -27,6 +28,7 @@ const filterLinks: { key: RequestListScope; label: string; icon: typeof Inbox }[
 ];
 
 const adminLinks = [
+  { key: "reports", label: "Báo cáo", href: "/request/reports", icon: BarChart3 },
   { key: "all-groups", label: "Tất cả nhóm đề xuất (Tùy chỉnh)", href: "/request/groups", icon: Settings },
   { key: "system-proposals", label: "Tất cả đề xuất hệ thống", href: "/request/system-proposals", icon: FileClock },
   { key: "webhook-history", label: "Lịch sử Webhook", href: "/request/webhook-history", icon: Webhook },

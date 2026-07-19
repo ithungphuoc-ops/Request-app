@@ -11,7 +11,6 @@ import { useCurrentSession } from "@/lib/useCurrentSession";
 const iconItems = [
   { key: "home", label: "Trang chủ", icon: Home, href: "/request" },
   { key: "search", label: "Tìm kiếm", icon: Search, href: "/request/search" },
-  { key: "reports", label: "Báo cáo", icon: BarChart3, href: "/request/search" },
 ];
 
 export default function AppBar() {
@@ -58,14 +57,24 @@ export default function AppBar() {
         ))}
 
         {isAdmin && (
-          <Link
-            href="/request/groups"
-            title="Tùy chỉnh"
-            aria-label="Tùy chỉnh"
-            className="relative flex h-12 w-12 items-center justify-center rounded-xl text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
-          >
-            <Settings size={22} strokeWidth={1.75} />
-          </Link>
+          <>
+            <Link
+              href="/request/reports"
+              title="Báo cáo"
+              aria-label="Báo cáo"
+              className="flex h-12 w-12 items-center justify-center rounded-xl text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
+            >
+              <BarChart3 size={22} strokeWidth={1.75} />
+            </Link>
+            <Link
+              href="/request/groups"
+              title="Tùy chỉnh"
+              aria-label="Tùy chỉnh"
+              className="relative flex h-12 w-12 items-center justify-center rounded-xl text-[var(--color-appbar-text)] hover:bg-white/10 hover:text-[var(--color-appbar-text-active)]"
+            >
+              <Settings size={22} strokeWidth={1.75} />
+            </Link>
+          </>
         )}
 
         <button
