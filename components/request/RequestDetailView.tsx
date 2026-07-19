@@ -1,12 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Forward, Paperclip, Send, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Copy, Forward, Paperclip, PenLine, RotateCcw, Send, Trash2, Undo2, X } from "lucide-react";
 import RequestStatusBadge from "@/components/request/RequestStatusBadge";
 import ForwardModal from "@/components/request/ForwardModal";
+import ReasonModal from "@/components/request/ReasonModal";
 import { canApproverAct } from "@/lib/approval-logic";
+import { useCurrentSession } from "@/lib/useCurrentSession";
 import { fieldDataTypeLabels } from "@/lib/types";
 import type { RequestAttachment, RequestInstance, TaggedUser } from "@/lib/types";
+
+function editLinkFor(request: RequestInstance): string {
+  return request.groupId
+    ? `/request/groups/${request.groupId}/submit?draftId=${request.id}`
+    : `/request/direct/new?draftId=${request.id}`;
+}
 
 function formatValue(value: unknown): string {
   if (value === undefined || value === null || value === "") return "—";
@@ -49,13 +58,75 @@ export default function RequestDetailView({
   currentUid: string | null;
   onActed: () => void;
 }) {
+  const router = useRouter();
+  const { isAdmin } = useCurrentSession();
   const [actingOn, setActingOn] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [forwardOpen, setForwardOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [commentText, setCommentText] = useState("");
   const [postingComment, setPostingComment] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
+  const [duplicating, setDuplicating] = useState(false);
+  const [managing, setManaging] = useState(false);
+
+  const isOwnRequest = currentUid !== null && currentUid === request.submittedBy.uid;
+  const canManage = isOwnRequest || isAdmin;
+
+  const duplicateRequest = async () => {
+    setDuplicating(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/requests/${request.id}/duplicate`, { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}) as { error?: string });
+        throw new Error(body.error ?? "Không thể nhân bản đề xuất.");
+      }
+      const data = (await res.json()) as { request: RequestInstance };
+      router.push(editLinkFor(data.request));
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Có lỗi xảy ra.");
+    } finally {
+      setDuplicating(false);
+    }
+  };
+
+  const deleteRequest = async () => {
+    if (!window.confirm("Xóa đề xuất này? Có thể khôi phục lại sau qua admin.")) return;
+    setManaging(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/requests/${request.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}) as { error?: string });
+        throw new Error(body.error ?? "Không thể xóa đề xuất.");
+      }
+      onActed();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Có lỗi xảy ra.");
+    } finally {
+      setManaging(false);
+    }
+  };
+
+  const restoreRequest = async () => {
+    setManaging(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/requests/${request.id}/restore`, { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}) as { error?: string });
+        throw new Error(body.error ?? "Không thể khôi phục đề xuất.");
+      }
+      onActed();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Có lỗi xảy ra.");
+    } finally {
+      setManaging(false);
+    }
+  };
 
   useEffect(() => {
     if (request.status !== "pending" || !request.deadlineAt) return;
@@ -66,22 +137,25 @@ export default function RequestDetailView({
   const canAct =
     currentUid !== null && canApproverAct(request.approvalFlow, request.approvers, currentUid);
 
-  const decide = async (decision: "approved" | "rejected") => {
+  const decide = async (decision: "approved" | "rejected" | "returned", note?: string) => {
     setActingOn(true);
     setActionError(null);
     try {
       const res = await fetch(`/api/requests/${request.id}/decision`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision }),
+        body: JSON.stringify({ decision, note }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}) as { error?: string });
         throw new Error(body.error ?? "Không thể xử lý quyết định.");
       }
+      setRejectOpen(false);
+      setReturnOpen(false);
       onActed();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Có lỗi xảy ra.");
+      throw err;
     } finally {
       setActingOn(false);
     }
@@ -145,11 +219,58 @@ export default function RequestDetailView({
           </span>
         </div>
 
+        {request.deletedAt && (
+          <div className="mt-3 flex items-center justify-between gap-3 rounded border border-red-100 bg-red-50 px-3 py-2 text-[13px] text-[var(--color-danger-red)]">
+            <span>Đề xuất đã bị xóa lúc {new Date(request.deletedAt).toLocaleString("vi-VN")}.</span>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={restoreRequest}
+                disabled={managing}
+                className="flex shrink-0 items-center gap-1 rounded bg-white px-2.5 py-1 text-[12px] font-medium text-[var(--color-danger-red)] ring-1 ring-inset ring-red-200 hover:bg-red-100 disabled:opacity-60"
+              >
+                <RotateCcw size={13} /> Khôi phục
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {request.status === "returned" && isOwnRequest && (
+            <a
+              href={editLinkFor(request)}
+              className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-action-blue)] px-3 text-[12px] font-medium text-[var(--color-action-blue)] hover:bg-blue-50"
+            >
+              <PenLine size={13} /> Sửa và gửi lại
+            </a>
+          )}
+          {currentUid && (
+            <button
+              type="button"
+              onClick={duplicateRequest}
+              disabled={duplicating}
+              className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-border)] px-3 text-[12px] font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+            >
+              <Copy size={13} /> {duplicating ? "Đang nhân bản..." : "Nhân bản"}
+            </button>
+          )}
+          {canManage && !request.deletedAt && (
+            <button
+              type="button"
+              onClick={deleteRequest}
+              disabled={managing}
+              className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-border)] px-3 text-[12px] font-medium text-gray-500 hover:border-red-200 hover:bg-red-50 hover:text-[var(--color-danger-red)] disabled:opacity-60"
+            >
+              <Trash2 size={13} /> Xóa
+            </button>
+          )}
+        </div>
+
         {canAct && (
           <div className="mt-4 flex items-center gap-2">
             <button
               type="button"
-              onClick={() => decide("approved")}
+              onClick={() => decide("approved").catch(() => {})}
               disabled={actingOn}
               className="flex h-9 items-center gap-1.5 rounded bg-[var(--color-confirm-green)] px-4 text-[13px] font-medium text-white hover:brightness-95 disabled:opacity-60"
             >
@@ -165,7 +286,15 @@ export default function RequestDetailView({
             </button>
             <button
               type="button"
-              onClick={() => decide("rejected")}
+              onClick={() => setReturnOpen(true)}
+              disabled={actingOn}
+              className="flex h-9 items-center gap-1.5 rounded bg-orange-500 px-4 text-[13px] font-medium text-white hover:brightness-95 disabled:opacity-60"
+            >
+              <Undo2 size={15} /> Trả lại
+            </button>
+            <button
+              type="button"
+              onClick={() => setRejectOpen(true)}
               disabled={actingOn}
               className="flex h-9 items-center gap-1.5 rounded bg-[var(--color-danger-red)] px-4 text-[13px] font-medium text-white hover:brightness-95 disabled:opacity-60"
             >
@@ -406,6 +535,22 @@ export default function RequestDetailView({
 
       {forwardOpen && (
         <ForwardModal onClose={() => setForwardOpen(false)} onConfirm={forward} />
+      )}
+      {rejectOpen && (
+        <ReasonModal
+          title="Từ chối đề xuất"
+          confirmLabel="Từ chối"
+          onClose={() => setRejectOpen(false)}
+          onConfirm={(note) => decide("rejected", note)}
+        />
+      )}
+      {returnOpen && (
+        <ReasonModal
+          title="Trả lại đề xuất"
+          confirmLabel="Trả lại"
+          onClose={() => setReturnOpen(false)}
+          onConfirm={(note) => decide("returned", note)}
+        />
       )}
     </div>
   );

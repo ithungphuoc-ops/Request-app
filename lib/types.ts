@@ -175,6 +175,10 @@ export interface RequestInstance {
   deadlineAt: string | null;
   history: RequestHistoryEntry[];
   comments: RequestComment[];
+  /** Xóa mềm — null nếu chưa xóa. Đề xuất đã xóa bị loại khỏi mọi danh sách
+   * thường (mine/inbox/all/group...), chỉ hiện trong "Tất cả đề xuất hệ
+   * thống" (scope=system, admin) để khôi phục khi cần. */
+  deletedAt: string | null;
 }
 
 export type ModalWindowStatus =

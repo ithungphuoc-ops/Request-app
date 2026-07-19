@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { apiErrorResponse } from "@/lib/http";
+import { canManageGroupsAtAppScope } from "@/lib/permissions";
 import {
   buildInitialApprovers,
   canView,
@@ -58,9 +59,10 @@ export async function PATCH(
     if (!found) {
       return NextResponse.json({ error: "Không tìm thấy đề xuất." }, { status: 404 });
     }
-    if (found.status !== "draft" || found.submittedBy.uid !== session.uid) {
+    const isOwnEditable = found.status === "draft" || found.status === "returned";
+    if (!isOwnEditable || found.submittedBy.uid !== session.uid) {
       return NextResponse.json(
-        { error: "Chỉ chủ đề xuất mới sửa được nháp của chính mình." },
+        { error: "Chỉ chủ đề xuất mới sửa được nháp hoặc đề xuất bị trả lại của chính mình." },
         { status: 403 },
       );
     }
@@ -132,7 +134,14 @@ export async function PATCH(
         status: "pending" as const,
         deadlineAt,
         updatedAt: nowIso,
-        history: [...found.history, { at: nowIso, actor: session.name, action: "Đã gửi đề xuất" }],
+        history: [
+          ...found.history,
+          {
+            at: nowIso,
+            actor: session.name,
+            action: found.status === "returned" ? "Đã gửi lại đề xuất" : "Đã gửi đề xuất",
+          },
+        ],
       };
       await ref.update(patch);
       return NextResponse.json({ request: { ...found, ...patch } });
@@ -161,10 +170,53 @@ export async function PATCH(
       status: "pending" as const,
       deadlineAt: null,
       updatedAt: nowIso,
-      history: [...found.history, { at: nowIso, actor: session.name, action: "Đã gửi đề xuất" }],
+      history: [
+        ...found.history,
+        {
+          at: nowIso,
+          actor: session.name,
+          action: found.status === "returned" ? "Đã gửi lại đề xuất" : "Đã gửi đề xuất",
+        },
+      ],
     };
     await ref.update(patch);
     return NextResponse.json({ request: { ...found, ...patch } });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
+/** Xóa mềm — chủ đề xuất hoặc owner/admin app đều xóa được, dữ liệu vẫn giữ
+ * nguyên trong Firestore để khôi phục qua /api/requests/[id]/restore. */
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const session = await requireSession();
+    const { id } = await params;
+    const found = await loadRequest(id);
+    if (!found) {
+      return NextResponse.json({ error: "Không tìm thấy đề xuất." }, { status: 404 });
+    }
+    const isOwner = found.submittedBy.uid === session.uid;
+    if (!isOwner && !canManageGroupsAtAppScope(session.role)) {
+      return NextResponse.json(
+        { error: "Chỉ chủ đề xuất hoặc Owner/Admin mới xóa được." },
+        { status: 403 },
+      );
+    }
+    if (found.deletedAt) {
+      return NextResponse.json({ request: found });
+    }
+
+    const nowIso = new Date().toISOString();
+    const history = [
+      ...found.history,
+      { at: nowIso, actor: session.name, action: "Đã xóa đề xuất" },
+    ];
+    await adminDb.collection("requests").doc(id).update({ deletedAt: nowIso, history });
+    return NextResponse.json({ request: { ...found, deletedAt: nowIso, history } });
   } catch (error) {
     return apiErrorResponse(error);
   }

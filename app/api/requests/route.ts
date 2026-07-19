@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { canApproverAct } from "@/lib/approval-logic";
 import { adminDb } from "@/lib/firebase/admin";
 import { apiErrorResponse } from "@/lib/http";
-import { isWithinUsedForScope } from "@/lib/permissions";
+import { canManageGroupsAtAppScope, isWithinUsedForScope } from "@/lib/permissions";
 import {
   buildInitialApprovers,
   canView,
@@ -35,6 +35,7 @@ export async function GET(request: Request) {
         .get();
       const requests = snap.docs
         .map((doc) => ({ id: doc.id, ...doc.data() }) as RequestInstance)
+        .filter((r) => !r.deletedAt)
         .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
       return NextResponse.json({ requests });
     }
@@ -50,7 +51,7 @@ export async function GET(request: Request) {
         .get();
       const requests = snap.docs
         .map((doc) => ({ id: doc.id, ...doc.data() }) as RequestInstance)
-        .filter((r) => canApproverAct(r.approvalFlow, r.approvers, session.uid))
+        .filter((r) => !r.deletedAt && canApproverAct(r.approvalFlow, r.approvers, session.uid))
         .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
       return NextResponse.json({ requests });
     }
@@ -77,7 +78,23 @@ export async function GET(request: Request) {
             : (r: RequestInstance) => isMine(r) || isSentToMe(r) || isFollowing(r);
 
       const requests = all
-        .filter(filterFn)
+        .filter((r) => !r.deletedAt && filterFn(r))
+        .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+      return NextResponse.json({ requests });
+    }
+
+    // Toàn bộ đề xuất trong hệ thống (kể cả đã xóa mềm) — chỉ admin/owner,
+    // phục vụ trang "Tất cả đề xuất hệ thống" (xem tổng quan + khôi phục).
+    if (scope === "system") {
+      if (!canManageGroupsAtAppScope(session.role)) {
+        return NextResponse.json(
+          { error: "Chỉ Owner hoặc Admin mới xem được toàn bộ đề xuất hệ thống." },
+          { status: 403 },
+        );
+      }
+      const snap = await adminDb.collection("requests").get();
+      const requests = snap.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }) as RequestInstance)
         .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
       return NextResponse.json({ requests });
     }
@@ -93,7 +110,7 @@ export async function GET(request: Request) {
       const snap = await adminDb.collection("requests").where("groupId", "==", groupId).get();
       const requests = snap.docs
         .map((doc) => ({ id: doc.id, ...doc.data() }) as RequestInstance)
-        .filter((r) => canView(r, session.uid, session.role))
+        .filter((r) => !r.deletedAt && canView(r, session.uid, session.role))
         .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
       return NextResponse.json({ requests });
     }
@@ -218,6 +235,7 @@ export async function POST(request: Request) {
         { at: nowIso, actor: session.name, action: isDraft ? "Đã lưu nháp" : "Đã gửi đề xuất" },
       ],
       comments: [],
+      deletedAt: null,
     };
     await requestRef.set(newRequest);
 

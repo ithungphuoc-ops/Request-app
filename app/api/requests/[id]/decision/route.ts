@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   applyApproverDecision,
+  canApproverAct,
   forwardApprover,
   getRequestStatus,
 } from "@/lib/approval-logic";
@@ -10,9 +11,10 @@ import { requireSession } from "@/lib/session";
 import type { RequestInstance, TaggedUser } from "@/lib/types";
 
 interface DecisionBody {
-  decision: "approved" | "rejected" | "forwarded";
+  decision: "approved" | "rejected" | "forwarded" | "returned";
   /** Chỉ dùng khi decision = "forwarded" — người nhận quyền xử lý mới. */
   target?: TaggedUser;
+  /** Bắt buộc khi decision = "rejected" hoặc "returned" (§4.4 quy định phải có lý do). */
   note?: string;
 }
 
@@ -20,6 +22,7 @@ const ACTION_LABEL: Record<DecisionBody["decision"], string> = {
   approved: "Đã chấp thuận",
   rejected: "Đã từ chối",
   forwarded: "Đã chuyển tiếp",
+  returned: "Đã trả lại",
 };
 
 export async function POST(
@@ -38,6 +41,38 @@ export async function POST(
     }
     const current = { id: snap.id, ...snap.data() } as RequestInstance;
     const nowIso = new Date().toISOString();
+
+    if ((body.decision === "rejected" || body.decision === "returned") && !body.note?.trim()) {
+      return NextResponse.json(
+        { error: "Cần nhập lý do khi từ chối hoặc trả lại đề xuất." },
+        { status: 400 },
+      );
+    }
+
+    if (body.decision === "returned") {
+      if (!canApproverAct(current.approvalFlow, current.approvers, session.uid)) {
+        return NextResponse.json(
+          { error: "Bạn chưa tới lượt hoặc đã xử lý đề xuất này." },
+          { status: 409 },
+        );
+      }
+      // Trả lại reset toàn bộ người duyệt về "pending" — khi người tạo gửi lại,
+      // quy trình duyệt chạy lại từ đầu (khớp sơ đồ trạng thái §3.5).
+      const approvers = current.approvers.map((a) => ({ ...a, decision: "pending" as const }));
+      const history = [
+        ...current.history,
+        { at: nowIso, actor: session.name, action: ACTION_LABEL.returned, note: body.note },
+      ];
+      await ref.update({ approvers, status: "returned", history, updatedAt: nowIso });
+      const updated: RequestInstance = {
+        ...current,
+        approvers,
+        status: "returned",
+        history,
+        updatedAt: nowIso,
+      };
+      return NextResponse.json({ request: updated });
+    }
 
     if (body.decision === "forwarded") {
       if (!body.target) {
