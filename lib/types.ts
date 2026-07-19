@@ -92,6 +92,8 @@ export interface ProposalGroup {
   fields: ProposalField[];
   pinned: boolean;
   createdAt: string;
+  /** Ghi chú chân trang khi in đề xuất — vd "Người lập phiếu / Người duyệt". */
+  printFooterNote?: string;
 }
 
 export interface CategoryGroup {

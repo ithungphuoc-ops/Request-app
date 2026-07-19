@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, Forward, Paperclip, PenLine, RotateCcw, Send, Trash2, Undo2, X } from "lucide-react";
+import { Check, Copy, Forward, Paperclip, PenLine, Printer, RotateCcw, Send, Trash2, Undo2, X } from "lucide-react";
 import RequestStatusBadge from "@/components/request/RequestStatusBadge";
 import ForwardModal from "@/components/request/ForwardModal";
 import ReasonModal from "@/components/request/ReasonModal";
@@ -236,6 +236,16 @@ export default function RequestDetailView({
         )}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
+          {request.status !== "draft" && (
+            <a
+              href={`/print/requests/${request.id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-border)] px-3 text-[12px] font-medium text-gray-600 hover:bg-gray-50"
+            >
+              <Printer size={13} /> In đề xuất
+            </a>
+          )}
           {request.status === "returned" && isOwnRequest && (
             <a
               href={editLinkFor(request)}
