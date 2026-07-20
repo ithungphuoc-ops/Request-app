@@ -188,6 +188,16 @@ export default function AddFieldModal() {
           </Row>
         )}
 
+        {dataType === "department_select" && (
+          <Row label="Danh sách bộ phận">
+            <p className="text-[12px] text-gray-500">
+              Không cần nhập tay — khi gửi đề xuất, trường này tự lấy danh sách{" "}
+              <span className="font-medium">Nhóm thành viên</span> đang có ở
+              account.hpcore.vn/dashboard/member-groups để người dùng chọn.
+            </p>
+          </Row>
+        )}
+
         {tableTypes.includes(dataType) && (
           <Row label="Cấu hình cột">
             <div className="flex flex-col gap-2">

@@ -8,3 +8,8 @@ export const HPCORE_DASHBOARD_URL = "https://account.hpcore.vn/dashboard";
 // của base-request-app (request.hpcore.vn), theo đúng pattern app.href.includes(...)
 // đã dùng ở pkd_crm-next/KhoUNICE_Web.
 export const CURRENT_APP_HOST = "request.hpcore.vn";
+
+// Danh sách "Nhóm thành viên" (linh hoạt, cắt ngang phòng ban) do app tổng
+// quản lý tại account.hpcore.vn/dashboard/member-groups — public, chỉ trả
+// id + tên, dùng cho trường "Chọn bộ phận (tự động)".
+export const HPCORE_MEMBER_GROUPS_API = "https://account.hpcore.vn/api/member-groups/public";

@@ -4,9 +4,11 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Loader2, Paperclip, Plus, Trash2, X } from "lucide-react";
 import { useRequestContext } from "@/context/RequestContext";
+import { HPCORE_MEMBER_GROUPS_API } from "@/lib/constants";
 import {
   cancelButtonClass,
   confirmButtonClass,
+  disabledInputClass,
   inputClass,
   selectClass,
   textareaClass,
@@ -131,6 +133,15 @@ export default function SubmitRequestPage() {
 
       <div className="mt-5 rounded-[6px] border border-[var(--color-border)] bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-2 sm:flex-row sm:gap-4">
+            <label className="shrink-0 pt-1.5 text-[13px] font-semibold text-gray-700 sm:w-[220px]">
+              Nhóm đề xuất
+            </label>
+            <div className="min-w-0 flex-1">
+              <input className={disabledInputClass} value={group.name} disabled readOnly />
+            </div>
+          </div>
+
           {group.fields.length === 0 && (
             <p className="text-[13px] text-gray-400">Nhóm này chưa có trường dữ liệu nào.</p>
           )}
@@ -290,6 +301,8 @@ function FieldControl({
           onChange={(e) => onChange(e.target.value)}
         />
       );
+    case "department_select":
+      return <DepartmentSelectControl value={value} onChange={onChange} />;
     case "single_choice":
       return (
         <select
@@ -519,5 +532,49 @@ function FileFieldControl({
       </p>
       {error && <p className="text-[12px] text-[var(--color-danger-red)]">{error}</p>}
     </div>
+  );
+}
+
+function DepartmentSelectControl({
+  value,
+  onChange,
+}: {
+  value: unknown;
+  onChange: (value: unknown) => void;
+}) {
+  const [groups, setGroups] = useState<{ id: string; name: string }[] | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    fetch(HPCORE_MEMBER_GROUPS_API)
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error("fetch failed"))))
+      .then((data: { groups: { id: string; name: string }[] }) => setGroups(data.groups ?? []))
+      .catch(() => setError(true));
+  }, []);
+
+  if (error) {
+    return (
+      <p className="text-[12px] text-[var(--color-danger-red)]">
+        Không tải được danh sách bộ phận từ account.hpcore.vn, vui lòng thử lại sau.
+      </p>
+    );
+  }
+  if (!groups) {
+    return <p className="text-[12px] text-gray-400">Đang tải danh sách bộ phận...</p>;
+  }
+
+  return (
+    <select
+      className={selectClass}
+      value={(value as string) ?? ""}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">Chọn bộ phận</option>
+      {groups.map((g) => (
+        <option key={g.id} value={g.name}>
+          {g.name}
+        </option>
+      ))}
+    </select>
   );
 }
