@@ -5,18 +5,12 @@ import { useParams } from "next/navigation";
 import { Printer } from "lucide-react";
 import type { CategoryGroup, RequestInstance } from "@/lib/types";
 import { fieldDataTypeLabels } from "@/lib/types";
+import { deserializeTableRows } from "@/lib/table-field";
 
 function formatValue(value: unknown): string {
   if (value === undefined || value === null || value === "") return "—";
   if (Array.isArray(value)) {
     if (value.length === 0) return "—";
-    // Bảng nhiều dòng (string[][]) — in gộp thành văn bản, giữ đơn giản cho bản in.
-    if (Array.isArray(value[0])) {
-      return (value as string[][])
-        .map((row) => row.filter(Boolean).join(" / "))
-        .filter(Boolean)
-        .join("; ");
-    }
     // Tệp đính kèm hoặc lựa chọn nhiều giá trị.
     if (typeof value[0] === "object") {
       return (value as { name?: string }[]).map((v) => v.name ?? "").filter(Boolean).join(", ");
@@ -24,6 +18,14 @@ function formatValue(value: unknown): string {
     return (value as string[]).join(", ");
   }
   return String(value);
+}
+
+function formatTableValue(value: unknown): string {
+  const rows = deserializeTableRows(value);
+  return rows
+    .map((row) => row.filter(Boolean).join(" / "))
+    .filter(Boolean)
+    .join("; ") || "—";
 }
 
 export default function PrintRequestPage() {
@@ -139,7 +141,11 @@ export default function PrintRequestPage() {
                 {String(index + 1).padStart(2, "0")}. {field.name}
                 <span className="ml-1 text-[11px]">({fieldDataTypeLabels[field.dataType]})</span>:
               </span>{" "}
-              <span className="font-medium">{formatValue(request.values[field.id])}</span>
+              <span className="font-medium">
+                {field.dataType === "table" || field.dataType === "base_table"
+                  ? formatTableValue(request.values[field.id])
+                  : formatValue(request.values[field.id])}
+              </span>
             </div>
           ))}
         </div>

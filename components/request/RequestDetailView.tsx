@@ -11,6 +11,7 @@ import { canApproverAct } from "@/lib/approval-logic";
 import { useCurrentSession } from "@/lib/useCurrentSession";
 import { fieldDataTypeLabels } from "@/lib/types";
 import type { RequestAttachment, RequestInstance, TaggedUser } from "@/lib/types";
+import { deserializeTableRows } from "@/lib/table-field";
 
 function editLinkFor(request: RequestInstance): string {
   return request.groupId
@@ -365,7 +366,7 @@ export default function RequestDetailView({
                       {isTable ? (
                         <TableValueView
                           columns={field.tableColumns ?? []}
-                          rows={(request.values[field.id] as string[][]) ?? []}
+                          rows={deserializeTableRows(request.values[field.id])}
                         />
                       ) : isFile ? (
                         <FileValueView

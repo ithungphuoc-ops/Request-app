@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Paperclip, Plus, Trash2, X } from "lucide-react";
 import { useRequestContext } from "@/context/RequestContext";
 import { HPCORE_MEMBER_GROUPS_API } from "@/lib/constants";
+import { deserializeTableRows, toWireTableRows } from "@/lib/table-field";
 import {
   cancelButtonClass,
   confirmButtonClass,
@@ -56,22 +57,36 @@ export default function SubmitRequestPage() {
     setValues((prev) => ({ ...prev, [fieldId]: value }));
   };
 
+  const buildPayloadValues = (): FieldValues => {
+    const payload: FieldValues = { ...values };
+    for (const field of group.fields) {
+      if (
+        (field.dataType === "table" || field.dataType === "base_table") &&
+        payload[field.id] !== undefined
+      ) {
+        payload[field.id] = toWireTableRows(payload[field.id]);
+      }
+    }
+    return payload;
+  };
+
   const saveDraft = async () => {
     setSavingDraft(true);
     setSubmitError(null);
     try {
+      const payloadValues = buildPayloadValues();
       if (draftId) {
         const res = await fetch(`/api/requests/${draftId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ values, isDraft: true }),
+          body: JSON.stringify({ values: payloadValues, isDraft: true }),
         });
         if (!res.ok) throw new Error("Không thể lưu nháp.");
       } else {
         const res = await fetch("/api/requests", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ groupId: group.id, values, isDraft: true }),
+          body: JSON.stringify({ groupId: group.id, values: payloadValues, isDraft: true }),
         });
         if (!res.ok) throw new Error("Không thể lưu nháp.");
         const data = (await res.json()) as { request: RequestInstance };
@@ -101,16 +116,17 @@ export default function SubmitRequestPage() {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      const payloadValues = buildPayloadValues();
       const res = draftId
         ? await fetch(`/api/requests/${draftId}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ values, isDraft: false }),
+            body: JSON.stringify({ values: payloadValues, isDraft: false }),
           })
         : await fetch("/api/requests", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ groupId: group.id, values }),
+            body: JSON.stringify({ groupId: group.id, values: payloadValues }),
           });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}) as { error?: string });
@@ -345,7 +361,7 @@ function FieldControl({
     case "table":
     case "base_table": {
       const columns = field.tableColumns ?? [];
-      const rawRows = (value as string[][]) ?? [];
+      const rawRows = deserializeTableRows(value);
       // Luôn hiện sẵn ít nhất 1 dòng trống để người gửi thấy ngay chỗ nhập,
       // "Thêm dòng" chỉ để thêm dòng THỨ 2 trở đi — không cho xoá về 0 dòng.
       const rows = rawRows.length === 0 ? [columns.map(() => "")] : rawRows;
