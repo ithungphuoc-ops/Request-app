@@ -100,6 +100,15 @@ export interface ProposalGroup {
   createdAt: string;
   /** Ghi chú chân trang khi in đề xuất — vd "Người lập phiếu / Người duyệt". */
   printFooterNote?: string;
+  /** Mẫu in tự động (.docx) — điền dữ liệu vào đúng thẻ ${khoa} trong file, xem lib/print-template.ts. */
+  printTemplate?: PrintTemplate | null;
+}
+
+export interface PrintTemplate {
+  fileName: string;
+  /** Đường dẫn thật trong Storage (không phải URL công khai). */
+  path: string;
+  uploadedAt: string;
 }
 
 export interface CategoryGroup {

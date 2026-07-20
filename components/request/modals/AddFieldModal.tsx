@@ -66,7 +66,6 @@ export default function AddFieldModal() {
     } else {
       resetForm();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [addFieldModalGroupId, editingField]);
 
   if (!addFieldModalGroupId || !group) return null;

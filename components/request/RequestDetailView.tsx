@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, Forward, Paperclip, PenLine, Printer, RotateCcw, Trash2, Undo2, X } from "lucide-react";
+import { Check, Copy, FileDown, Forward, Paperclip, PenLine, Printer, RotateCcw, Trash2, Undo2, X } from "lucide-react";
 import RequestStatusBadge from "@/components/request/RequestStatusBadge";
 import ForwardModal from "@/components/request/ForwardModal";
 import ReasonModal from "@/components/request/ReasonModal";
 import CommentSection from "@/components/request/CommentSection";
 import { canApproverAct } from "@/lib/approval-logic";
 import { useCurrentSession } from "@/lib/useCurrentSession";
+import { useRequestContext } from "@/context/RequestContext";
 import { fieldDataTypeLabels } from "@/lib/types";
 import type { RequestAttachment, RequestInstance, TaggedUser } from "@/lib/types";
 import { deserializeTableRows } from "@/lib/table-field";
@@ -62,6 +63,9 @@ export default function RequestDetailView({
 }) {
   const router = useRouter();
   const { isAdmin } = useCurrentSession();
+  const { getGroupById } = useRequestContext();
+  const hasPrintTemplate =
+    request.groupId !== null && Boolean(getGroupById(request.groupId)?.printTemplate);
   const [actingOn, setActingOn] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [forwardOpen, setForwardOpen] = useState(false);
@@ -219,6 +223,14 @@ export default function RequestDetailView({
               className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-border)] px-3 text-[12px] font-medium text-gray-600 hover:bg-gray-50"
             >
               <Printer size={13} /> In đề xuất
+            </a>
+          )}
+          {request.status !== "draft" && hasPrintTemplate && (
+            <a
+              href={`/api/requests/${request.id}/print-template`}
+              className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-border)] px-3 text-[12px] font-medium text-gray-600 hover:bg-gray-50"
+            >
+              <FileDown size={13} /> Tải Word theo mẫu
             </a>
           )}
           {request.status === "returned" && isOwnRequest && (
