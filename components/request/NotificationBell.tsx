@@ -16,6 +16,7 @@ function buildNotifications(
   inbox: RequestInstance[],
   mine: RequestInstance[],
   mentioned: RequestInstance[],
+  following: RequestInstance[],
 ): NotificationItem[] {
   const items: NotificationItem[] = [];
 
@@ -29,6 +30,18 @@ function buildNotifications(
         ? `Bạn được chuyển tiếp đề xuất "${r.groupNameSnapshot}"`
         : `"${r.groupNameSnapshot}" đang chờ bạn duyệt`,
       at: lastEntry?.at ?? r.submittedAt,
+    });
+  }
+
+  // Người theo dõi (followers của nhóm đề xuất) — báo khi có đề xuất mới
+  // thuộc nhóm họ theo dõi, không phân biệt đã "đọc" hay chưa (giống các
+  // nguồn khác trong hàm này, xem ghi chú "mentioned" bên dưới).
+  for (const r of following) {
+    items.push({
+      id: `following-${r.id}`,
+      requestId: r.id,
+      text: `Đề xuất bạn đang theo dõi "${r.groupNameSnapshot}" vừa được gửi`,
+      at: r.submittedAt,
     });
   }
 
@@ -71,9 +84,11 @@ export default function NotificationBell() {
       fetch("/api/requests?scope=inbox").then((res) => (res.ok ? res.json() : { requests: [] })),
       fetch("/api/requests?scope=mine").then((res) => (res.ok ? res.json() : { requests: [] })),
       fetch("/api/requests?scope=mentioned").then((res) => (res.ok ? res.json() : { requests: [] })),
+      fetch("/api/requests?scope=following").then((res) => (res.ok ? res.json() : { requests: [] })),
     ])
       .then(
-        ([inboxData, mineData, mentionedData]: [
+        ([inboxData, mineData, mentionedData, followingData]: [
+          { requests: RequestInstance[] },
           { requests: RequestInstance[] },
           { requests: RequestInstance[] },
           { requests: RequestInstance[] },
@@ -84,6 +99,7 @@ export default function NotificationBell() {
               inboxData.requests ?? [],
               mineData.requests ?? [],
               mentionedData.requests ?? [],
+              followingData.requests ?? [],
             ),
           );
         },
