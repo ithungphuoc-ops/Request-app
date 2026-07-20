@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Pencil, Trash2 } from "lucide-react";
+import { GripVertical, Pencil, Trash2, Zap } from "lucide-react";
 import { fieldDataTypeLabels, type ProposalField } from "@/lib/types";
 
 interface FieldListItemProps {
@@ -16,10 +17,20 @@ export default function FieldListItem({ field, onToggleRequired, onEdit, onRemov
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: field.id,
   });
+  const [copied, setCopied] = useState(false);
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
+  };
+
+  const isTable = field.dataType === "table" || field.dataType === "base_table";
+
+  const copyCode = async () => {
+    if (!field.code) return;
+    await navigator.clipboard.writeText(`\${${field.code}}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
   };
 
   const handleRemove = () => {
@@ -32,7 +43,7 @@ export default function FieldListItem({ field, onToggleRequired, onEdit, onRemov
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-3 border-b border-gray-100 bg-white px-3 py-3 text-[13px] last:border-0 ${
+      className={`group flex items-center gap-3 border-b border-gray-100 bg-white px-3 py-3 text-[13px] last:border-0 ${
         isDragging ? "opacity-60 shadow-md" : ""
       }`}
     >
@@ -47,6 +58,29 @@ export default function FieldListItem({ field, onToggleRequired, onEdit, onRemov
       </button>
 
       <span className="min-w-0 flex-1 truncate font-medium text-gray-800">{field.name}</span>
+
+      {field.code && (
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={copyCode}
+            title={
+              isTable
+                ? `Sao chép mã trường "${field.code}" — trong mẫu in, dùng \${column.${field.code}.0} (STT), \${column.${field.code}.1}, \${column.${field.code}.2}... cho từng cột`
+                : `Sao chép mã trường \${${field.code}}`
+            }
+            aria-label={`Sao chép mã trường của ${field.name}`}
+            className="rounded p-1 text-gray-300 opacity-0 transition-opacity hover:text-yellow-500 group-hover:opacity-100"
+          >
+            <Zap size={14} />
+          </button>
+          {copied && (
+            <span className="absolute right-0 top-full z-10 mt-1 whitespace-nowrap rounded bg-gray-800 px-2 py-1 text-[11px] text-white">
+              Đã sao chép mã trường
+            </span>
+          )}
+        </div>
+      )}
 
       <span className={`shrink-0 text-[12px] ${field.required ? "text-[var(--color-action-blue)]" : "text-gray-400"}`}>
         {field.required ? "Bắt buộc" : "Không bắt buộc"}

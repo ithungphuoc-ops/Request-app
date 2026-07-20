@@ -1,13 +1,14 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { useRef, useState } from "react";
-import { FileText, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, FileText, Pencil, Star, Trash2, Upload } from "lucide-react";
 import RequireAdminRole from "@/components/request/RequireAdminRole";
 import { useRequestContext } from "@/context/RequestContext";
-import { cancelButtonClass, confirmButtonClass, textareaClass } from "@/components/shared/form-styles";
+import { cancelButtonClass, confirmButtonClass, inputClass, textareaClass } from "@/components/shared/form-styles";
 import { fieldDataTypeLabels } from "@/lib/types";
 import type { PrintTemplate } from "@/lib/types";
+import { COMPANY_NAME } from "@/lib/constants";
 import { SYSTEM_TEMPLATE_KEYS, fieldTemplateKeys } from "@/lib/print-template";
 
 export default function PrintSettingsPage() {
@@ -24,9 +25,32 @@ function PrintSettingsPageInner() {
   const group = getGroupById(params.groupId);
   const [footerNote, setFooterNote] = useState(group?.printFooterNote ?? "");
   const [saved, setSaved] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [requireApproved, setRequireApproved] = useState(group?.printRequireFullyApproved ?? false);
+
+  const [templates, setTemplates] = useState<PrintTemplate[]>([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [templateError, setTemplateError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const replaceInputRef = useRef<HTMLInputElement>(null);
+  const [replaceTargetId, setReplaceTargetId] = useState<string | null>(null);
+
+  const refetchTemplates = () => {
+    if (!group) return;
+    setLoadingTemplates(true);
+    fetch(`/api/groups/${group.id}/print-templates`)
+      .then((res) => (res.ok ? res.json() : { templates: [] }))
+      .then((data: { templates: PrintTemplate[] }) => setTemplates(data.templates ?? []))
+      .catch(() => setTemplates([]))
+      .finally(() => setLoadingTemplates(false));
+  };
+
+  useEffect(() => {
+    refetchTemplates();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [group?.id]);
 
   if (!group) return null;
 
@@ -36,13 +60,18 @@ function PrintSettingsPageInner() {
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const uploadTemplate = async (file: File) => {
-    setUploading(true);
+  const toggleRequireApproved = (value: boolean) => {
+    setRequireApproved(value);
+    updateGroup(group.id, { printRequireFullyApproved: value });
+  };
+
+  const uploadNewTemplate = async (file: File) => {
+    setBusyId("new");
     setTemplateError(null);
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch(`/api/groups/${group.id}/print-template`, {
+      const res = await fetch(`/api/groups/${group.id}/print-templates`, {
         method: "POST",
         body: formData,
       });
@@ -50,113 +79,302 @@ function PrintSettingsPageInner() {
         const body = await res.json().catch(() => ({}) as { error?: string });
         throw new Error(body.error ?? "Không thể tải mẫu in lên.");
       }
-      const { printTemplate } = (await res.json()) as { printTemplate: PrintTemplate };
-      updateGroup(group.id, { printTemplate });
+      refetchTemplates();
     } catch (err) {
       setTemplateError(err instanceof Error ? err.message : "Có lỗi xảy ra.");
     } finally {
-      setUploading(false);
+      setBusyId(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
-  const removeTemplate = async () => {
-    if (!window.confirm("Xoá mẫu in hiện tại?")) return;
-    setUploading(true);
+  const replaceTemplateFile = async (templateId: string, file: File) => {
+    setBusyId(templateId);
     setTemplateError(null);
     try {
-      const res = await fetch(`/api/groups/${group.id}/print-template`, { method: "DELETE" });
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`/api/groups/${group.id}/print-templates/${templateId}`, {
+        method: "PUT",
+        body: formData,
+      });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}) as { error?: string });
-        throw new Error(body.error ?? "Không thể xoá mẫu in.");
+        throw new Error(body.error ?? "Không thể thay tệp mẫu in.");
       }
-      updateGroup(group.id, { printTemplate: null });
+      refetchTemplates();
     } catch (err) {
       setTemplateError(err instanceof Error ? err.message : "Có lỗi xảy ra.");
     } finally {
-      setUploading(false);
+      setBusyId(null);
+      if (replaceInputRef.current) replaceInputRef.current.value = "";
+      setReplaceTargetId(null);
+    }
+  };
+
+  const saveRename = async (templateId: string) => {
+    const name = renameValue.trim();
+    if (!name) return;
+    setBusyId(templateId);
+    try {
+      const res = await fetch(`/api/groups/${group.id}/print-templates/${templateId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) throw new Error("Không thể đổi tên mẫu.");
+      refetchTemplates();
+    } catch (err) {
+      setTemplateError(err instanceof Error ? err.message : "Có lỗi xảy ra.");
+    } finally {
+      setBusyId(null);
+      setRenamingId(null);
+    }
+  };
+
+  const setDefault = async (templateId: string) => {
+    setBusyId(templateId);
+    try {
+      const res = await fetch(`/api/groups/${group.id}/print-templates/${templateId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ setDefault: true }),
+      });
+      if (!res.ok) throw new Error("Không thể đặt làm mặc định.");
+      refetchTemplates();
+    } catch (err) {
+      setTemplateError(err instanceof Error ? err.message : "Có lỗi xảy ra.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const removeTemplate = async (templateId: string, name: string) => {
+    if (!window.confirm(`Xoá mẫu in "${name}"? Lịch sử xuất file trước đó vẫn được giữ lại.`)) return;
+    setBusyId(templateId);
+    try {
+      const res = await fetch(`/api/groups/${group.id}/print-templates/${templateId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Không thể xoá mẫu in.");
+      refetchTemplates();
+    } catch (err) {
+      setTemplateError(err instanceof Error ? err.message : "Có lỗi xảy ra.");
+    } finally {
+      setBusyId(null);
     }
   };
 
   const sortedFields = [...group.fields].sort((a, b) => a.order - b.order);
-  const placeholderKeys = [...SYSTEM_TEMPLATE_KEYS, ...fieldTemplateKeys(sortedFields)];
 
   return (
     <div>
       <h2 className="mb-4 text-[15px] font-semibold text-gray-800">In đề xuất</h2>
 
       <div className="mb-6 rounded-[3px] border border-[var(--color-border)] bg-white p-4">
-        <h3 className="text-[13px] font-semibold text-gray-800">Mẫu in tự động (.docx)</h3>
-        <p className="mt-1 text-[12px] text-gray-500">
-          Tải lên file Word có sẵn logo/tiêu đề công ty, gõ thẻ giữ chỗ dạng{" "}
-          <code className="rounded bg-gray-100 px-1 py-0.5">${"{khoa}"}</code> vào đúng vị trí cần
-          điền dữ liệu — hệ thống sẽ tự thay bằng dữ liệu thật khi tải về (dùng nút &quot;Tải Word
-          theo mẫu&quot; ở trang chi tiết đề xuất).
-        </p>
-
-        {group.printTemplate ? (
-          <div className="mt-3 flex items-center justify-between gap-3 rounded border border-[var(--color-border)] bg-gray-50 px-3 py-2">
-            <div className="flex min-w-0 items-center gap-2 text-[13px] text-gray-700">
-              <FileText size={16} className="shrink-0 text-[var(--color-action-blue)]" />
-              <span className="truncate">{group.printTemplate.fileName}</span>
-              <span className="shrink-0 text-[11px] text-gray-400">
-                — tải lên {new Date(group.printTemplate.uploadedAt).toLocaleString("vi-VN")}
-              </span>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className={`${cancelButtonClass} h-8 px-3 text-[12px] disabled:opacity-60`}
-              >
-                Thay mẫu khác
-              </button>
-              <button
-                type="button"
-                onClick={removeTemplate}
-                disabled={uploading}
-                className="flex h-8 items-center gap-1 rounded px-2 text-[12px] text-gray-400 hover:text-[var(--color-danger-red)] disabled:opacity-60"
-              >
-                <Trash2 size={13} /> Xoá
-              </button>
-            </div>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-[13px] font-semibold text-gray-800">Mẫu in tự động (.docx)</h3>
+            <p className="mt-1 text-[12px] text-gray-500">
+              Nhóm có thể có nhiều mẫu — gõ thẻ giữ chỗ dạng{" "}
+              <code className="rounded bg-gray-100 px-1 py-0.5">${"{ma_truong}"}</code> vào đúng vị
+              trí trong file Word, hệ thống tự thay bằng dữ liệu thật khi &quot;In theo mẫu&quot;.
+            </p>
           </div>
-        ) : (
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className={`${confirmButtonClass} mt-3 flex items-center gap-1.5 px-4 disabled:opacity-60`}
+            disabled={busyId === "new"}
+            className={`${confirmButtonClass} flex shrink-0 items-center gap-1.5 px-3 disabled:opacity-60`}
           >
-            <Upload size={14} /> {uploading ? "Đang tải lên..." : "Tải mẫu Word lên"}
+            <Upload size={14} /> {busyId === "new" ? "Đang tải lên..." : "Thêm mẫu"}
           </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".docx"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) uploadNewTemplate(file);
+            }}
+          />
+        </div>
+
+        {templateError && (
+          <p className="mt-2 text-[12px] text-[var(--color-danger-red)]">{templateError}</p>
         )}
+
+        <div className="mt-3 flex flex-col gap-2">
+          {loadingTemplates ? (
+            <p className="text-[12px] text-gray-400">Đang tải danh sách mẫu...</p>
+          ) : templates.length === 0 ? (
+            <p className="text-[12px] text-gray-400">Chưa có mẫu in nào — bấm &quot;Thêm mẫu&quot; để bắt đầu.</p>
+          ) : (
+            templates.map((t) => (
+              <div key={t.id} className="rounded border border-[var(--color-border)] px-3 py-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2 text-[13px] text-gray-700">
+                    <FileText size={16} className="shrink-0 text-[var(--color-action-blue)]" />
+                    {renamingId === t.id ? (
+                      <input
+                        autoFocus
+                        className={`${inputClass} h-7 w-[220px] text-[12px]`}
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveRename(t.id);
+                          if (e.key === "Escape") setRenamingId(null);
+                        }}
+                      />
+                    ) : (
+                      <span className="truncate font-medium">{t.name}</span>
+                    )}
+                    {t.isDefault && (
+                      <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-yellow-100 px-1.5 py-0.5 text-[10px] font-medium text-yellow-700">
+                        <Star size={10} fill="currentColor" /> Mặc định
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {renamingId === t.id ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => saveRename(t.id)}
+                          className="rounded px-2 py-1 text-[11px] text-[var(--color-action-blue)] hover:bg-blue-50"
+                        >
+                          Lưu
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRenamingId(null)}
+                          className={`${cancelButtonClass} h-7 px-2 text-[11px]`}
+                        >
+                          Huỷ
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {!t.isDefault && (
+                          <button
+                            type="button"
+                            onClick={() => setDefault(t.id)}
+                            disabled={busyId === t.id}
+                            title="Đặt làm mặc định"
+                            className="rounded p-1.5 text-gray-400 hover:text-yellow-600 disabled:opacity-60"
+                          >
+                            <Star size={14} />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRenamingId(t.id);
+                            setRenameValue(t.name);
+                          }}
+                          title="Đổi tên"
+                          className="rounded p-1.5 text-gray-400 hover:text-[var(--color-action-blue)]"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <a
+                          href={`/api/groups/${group.id}/print-templates/${t.id}/download`}
+                          title="Tải mẫu gốc xuống"
+                          className="rounded p-1.5 text-gray-400 hover:text-[var(--color-action-blue)]"
+                        >
+                          <Download size={14} />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReplaceTargetId(t.id);
+                            replaceInputRef.current?.click();
+                          }}
+                          disabled={busyId === t.id}
+                          title="Thay tệp mẫu"
+                          className="rounded p-1.5 text-gray-400 hover:text-[var(--color-action-blue)] disabled:opacity-60"
+                        >
+                          <Upload size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeTemplate(t.id, t.name)}
+                          disabled={busyId === t.id}
+                          title="Xoá mẫu"
+                          className="rounded p-1.5 text-gray-400 hover:text-[var(--color-danger-red)] disabled:opacity-60"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <p className="mt-1 text-[11px] text-gray-400">
+                  {t.fileName} · phiên bản {t.version} · tạo bởi {t.createdBy.name} · cập nhật{" "}
+                  {new Date(t.updatedAt).toLocaleString("vi-VN")}
+                </p>
+                {(t.validation.errors.length > 0 || t.validation.warnings.length > 0) && (
+                  <div className="mt-1.5 flex flex-col gap-1">
+                    {t.validation.errors.map((e, i) => (
+                      <p key={i} className="flex items-start gap-1 text-[11px] text-[var(--color-danger-red)]">
+                        <AlertTriangle size={12} className="mt-0.5 shrink-0" /> {e}
+                      </p>
+                    ))}
+                    {t.validation.warnings.map((w, i) => (
+                      <p key={i} className="flex items-start gap-1 text-[11px] text-orange-500">
+                        <AlertTriangle size={12} className="mt-0.5 shrink-0" /> {w}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                {t.detectedVariables.length > 0 && (
+                  <p className="mt-1.5 flex items-center gap-1 text-[11px] text-green-600">
+                    <CheckCircle2 size={12} /> Phát hiện {t.detectedVariables.length} biến trong mẫu.
+                  </p>
+                )}
+              </div>
+            ))
+          )}
+        </div>
         <input
-          ref={fileInputRef}
+          ref={replaceInputRef}
           type="file"
           accept=".docx"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) uploadTemplate(file);
+            if (file && replaceTargetId) replaceTemplateFile(replaceTargetId, file);
           }}
         />
-        {templateError && (
-          <p className="mt-2 text-[12px] text-[var(--color-danger-red)]">{templateError}</p>
-        )}
 
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {placeholderKeys.map((k) => (
-            <code
-              key={k.key}
-              title={k.label}
-              className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600"
-            >
-              ${"{" + k.key + "}"}
-            </code>
-          ))}
+        <div className="mt-4 border-t border-gray-100 pt-3">
+          <p className="mb-1.5 text-[12px] font-medium text-gray-600">
+            Danh sách mã trường khả dụng (bấm để sao chép)
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {[...SYSTEM_TEMPLATE_KEYS, ...fieldTemplateKeys(sortedFields)].map((k) => (
+              <button
+                key={k.key}
+                type="button"
+                title={k.label}
+                onClick={() => navigator.clipboard.writeText(`\${${k.key}}`)}
+                className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-600 hover:bg-gray-200"
+              >
+                ${"{" + k.key + "}"}
+              </button>
+            ))}
+          </div>
         </div>
+
+        <label className="mt-4 flex items-center gap-2 text-[12px] text-gray-600">
+          <input
+            type="checkbox"
+            checked={requireApproved}
+            onChange={(e) => toggleRequireApproved(e.target.checked)}
+          />
+          Chỉ cho phép &quot;In theo mẫu&quot; khi đề xuất đã được duyệt hoàn toàn
+        </label>
       </div>
 
       <div className="flex gap-6">
@@ -172,20 +390,17 @@ function PrintSettingsPageInner() {
             placeholder="Ví dụ: Người lập phiếu&#10;&#10;&#10;Người duyệt"
           />
           <p className="mt-1 text-[12px] text-gray-400">
-            Hiện ở cuối trang khi in đề xuất thuộc nhóm này. Để trống dùng ghi chú mặc định.
+            Hiện ở cuối trang khi in đề xuất thuộc nhóm này (bản in HTML đơn giản, khác với mẫu
+            .docx ở trên). Để trống dùng ghi chú mặc định.
           </p>
           <button type="button" onClick={save} className={`${confirmButtonClass} mt-3 px-4`}>
             {saved ? "Đã lưu" : "Lưu thay đổi"}
           </button>
-          <p className="mt-4 text-[12px] text-gray-400">
-            Xem bản in thật ở trang chi tiết của từng đề xuất đã gửi (nút &quot;In đề xuất&quot;).
-            Bên phải là bản xem trước với dữ liệu mẫu.
-          </p>
         </div>
 
         <div className="min-w-0 flex-1 rounded-[3px] border border-[var(--color-border)] bg-white p-6">
           <div className="mx-auto max-w-[560px] border border-gray-200 p-6 text-[13px]">
-            <p className="text-center text-[15px] font-bold uppercase">HP Cons</p>
+            <p className="text-center text-[15px] font-bold uppercase">{COMPANY_NAME}</p>
             <p className="mt-1 text-center text-[13px] font-semibold uppercase text-gray-600">
               {group.name}
             </p>

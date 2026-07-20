@@ -6,6 +6,7 @@ import { Printer } from "lucide-react";
 import type { CategoryGroup, RequestInstance } from "@/lib/types";
 import { fieldDataTypeLabels } from "@/lib/types";
 import { deserializeTableRows } from "@/lib/table-field";
+import { COMPANY_NAME } from "@/lib/constants";
 
 function formatValue(value: unknown): string {
   if (value === undefined || value === null || value === "") return "—";
@@ -98,7 +99,7 @@ export default function PrintRequestPage() {
       </div>
 
       <div className="mx-auto max-w-[720px] bg-white px-10 py-8 text-[13px] text-gray-800 print:max-w-none print:p-0">
-        <p className="text-center text-[16px] font-bold uppercase">HP Cons</p>
+        <p className="text-center text-[16px] font-bold uppercase">{COMPANY_NAME}</p>
         <p className="mt-1 text-center text-[14px] font-semibold uppercase text-gray-700">
           {request.groupNameSnapshot}
         </p>

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { apiErrorResponse } from "@/lib/http";
-import { ensureCategoryExists } from "@/lib/server/groups";
+import { ensureCategoryExists, ensureFieldCodes } from "@/lib/server/groups";
 import { requireSession, requireWriteAccess } from "@/lib/session";
 import type { CategoryGroup, ProposalGroup } from "@/lib/types";
 
@@ -14,8 +14,16 @@ export async function GET() {
       adminDb.collection("groups").orderBy("createdAt").get(),
     ]);
 
-    const groups = groupsSnap.docs.map(
-      (doc) => ({ id: doc.id, ...doc.data() }) as ProposalGroup,
+    const groups = await Promise.all(
+      groupsSnap.docs.map(async (doc) => {
+        const group = { id: doc.id, ...doc.data() } as ProposalGroup;
+        const { fields, changed } = ensureFieldCodes(group.fields);
+        if (changed) {
+          await doc.ref.update({ fields });
+          group.fields = fields;
+        }
+        return group;
+      }),
     );
 
     const categoryGroups: CategoryGroup[] = categoriesSnap.docs.map((doc) => {

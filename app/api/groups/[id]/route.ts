@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { apiErrorResponse } from "@/lib/http";
-import { diffGroupPatch, ensureCategoryExists, recordGroupHistory } from "@/lib/server/groups";
+import {
+  diffGroupPatch,
+  ensureCategoryExists,
+  ensureFieldCodes,
+  recordGroupHistory,
+} from "@/lib/server/groups";
 import { requireWriteAccess } from "@/lib/session";
 import type { ProposalGroup } from "@/lib/types";
 
@@ -27,6 +32,9 @@ export async function PATCH(
     if (patch.category) {
       await ensureCategoryExists(patch.category.trim());
       patch.category = patch.category.trim();
+    }
+    if (patch.fields) {
+      patch.fields = ensureFieldCodes(patch.fields).fields;
     }
 
     await ref.update({ ...patch });

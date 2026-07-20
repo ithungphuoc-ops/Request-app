@@ -1,17 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, FileDown, Forward, Paperclip, PenLine, Printer, RotateCcw, Trash2, Undo2, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  FileDown,
+  Forward,
+  Paperclip,
+  PenLine,
+  Printer,
+  RotateCcw,
+  Trash2,
+  Undo2,
+  X,
+} from "lucide-react";
 import RequestStatusBadge from "@/components/request/RequestStatusBadge";
 import ForwardModal from "@/components/request/ForwardModal";
 import ReasonModal from "@/components/request/ReasonModal";
 import CommentSection from "@/components/request/CommentSection";
 import { canApproverAct } from "@/lib/approval-logic";
 import { useCurrentSession } from "@/lib/useCurrentSession";
-import { useRequestContext } from "@/context/RequestContext";
 import { fieldDataTypeLabels } from "@/lib/types";
-import type { RequestAttachment, RequestInstance, TaggedUser } from "@/lib/types";
+import type { PrintTemplate, RequestAttachment, RequestInstance, TaggedUser } from "@/lib/types";
 import { deserializeTableRows } from "@/lib/table-field";
 
 function editLinkFor(request: RequestInstance): string {
@@ -63,9 +75,6 @@ export default function RequestDetailView({
 }) {
   const router = useRouter();
   const { isAdmin } = useCurrentSession();
-  const { getGroupById } = useRequestContext();
-  const hasPrintTemplate =
-    request.groupId !== null && Boolean(getGroupById(request.groupId)?.printTemplate);
   const [actingOn, setActingOn] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [forwardOpen, setForwardOpen] = useState(false);
@@ -74,9 +83,31 @@ export default function RequestDetailView({
   const [now, setNow] = useState(() => Date.now());
   const [duplicating, setDuplicating] = useState(false);
   const [managing, setManaging] = useState(false);
+  const [printTemplates, setPrintTemplates] = useState<PrintTemplate[]>([]);
+  const [printMenuOpen, setPrintMenuOpen] = useState(false);
+  const printMenuRef = useRef<HTMLDivElement>(null);
 
   const isOwnRequest = currentUid !== null && currentUid === request.submittedBy.uid;
   const canManage = isOwnRequest || isAdmin;
+
+  useEffect(() => {
+    if (!request.groupId) return;
+    fetch(`/api/groups/${request.groupId}/print-templates`)
+      .then((res) => (res.ok ? res.json() : { templates: [] }))
+      .then((data: { templates: PrintTemplate[] }) => setPrintTemplates(data.templates ?? []))
+      .catch(() => setPrintTemplates([]));
+  }, [request.groupId]);
+
+  useEffect(() => {
+    if (!printMenuOpen) return;
+    const onClickOutside = (event: MouseEvent) => {
+      if (printMenuRef.current && !printMenuRef.current.contains(event.target as Node)) {
+        setPrintMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [printMenuOpen]);
 
   const duplicateRequest = async () => {
     setDuplicating(true);
@@ -225,13 +256,33 @@ export default function RequestDetailView({
               <Printer size={13} /> In đề xuất
             </a>
           )}
-          {request.status !== "draft" && hasPrintTemplate && (
-            <a
-              href={`/api/requests/${request.id}/print-template`}
-              className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-border)] px-3 text-[12px] font-medium text-gray-600 hover:bg-gray-50"
-            >
-              <FileDown size={13} /> Tải Word theo mẫu
-            </a>
+          {request.status !== "draft" && printTemplates.length > 0 && (
+            <div ref={printMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setPrintMenuOpen((v) => !v)}
+                className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-border)] px-3 text-[12px] font-medium text-gray-600 hover:bg-gray-50"
+              >
+                <FileDown size={13} /> In theo mẫu <ChevronDown size={12} />
+              </button>
+              {printMenuOpen && (
+                <div className="absolute left-0 top-full z-20 mt-1 w-[260px] rounded border border-[var(--color-border)] bg-white shadow-lg">
+                  {printTemplates.map((t) => (
+                    <a
+                      key={t.id}
+                      href={`/api/requests/${request.id}/export?templateId=${t.id}`}
+                      onClick={() => setPrintMenuOpen(false)}
+                      className="flex items-center justify-between gap-2 border-b border-gray-50 px-3 py-2 text-[12px] text-gray-700 last:border-0 hover:bg-gray-50"
+                    >
+                      <span className="truncate">{t.name}</span>
+                      {t.isDefault && (
+                        <span className="shrink-0 text-[10px] text-yellow-600">Mặc định</span>
+                      )}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
           {request.status === "returned" && isOwnRequest && (
             <a

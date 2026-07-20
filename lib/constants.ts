@@ -13,3 +13,7 @@ export const CURRENT_APP_HOST = "request.hpcore.vn";
 // quản lý tại account.hpcore.vn/dashboard/member-groups — public, chỉ trả
 // id + tên, dùng cho trường "Chọn bộ phận (tự động)".
 export const HPCORE_MEMBER_GROUPS_API = "https://account.hpcore.vn/api/member-groups/public";
+
+// Tên công ty đầy đủ — dùng cho thẻ ${company} trong mẫu in và các nơi hiển
+// thị letterhead. Trước đây hardcode rời rạc ở nhiều trang, giờ gom về 1 nơi.
+export const COMPANY_NAME = "CÔNG TY CỔ PHẦN XÂY DỰNG CÔNG NGHIỆP HƯNG PHƯỚC";

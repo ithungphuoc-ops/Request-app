@@ -2,6 +2,8 @@ import "server-only";
 import { adminDb } from "@/lib/firebase/admin";
 import type { GroupHistoryChange } from "@/lib/types";
 
+export { ensureFieldCodes } from "@/lib/print-template";
+
 /** Đảm bảo tồn tại tài liệu `categories` cho tên danh mục này, tạo mới nếu chưa có. */
 export async function ensureCategoryExists(categoryName: string): Promise<void> {
   const categoriesRef = adminDb.collection("categories");

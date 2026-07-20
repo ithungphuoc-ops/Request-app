@@ -29,6 +29,15 @@ export interface TaggedUser {
 export interface ProposalField {
   id: string;
   name: string;
+  /**
+   * Mã trường ỔN ĐỊNH dùng làm thẻ ${code} trong mẫu in — sinh 1 LẦN DUY NHẤT
+   * lúc tạo field (slug từ tên ban đầu, thêm hậu tố _2/_3... nếu trùng trong
+   * nhóm) và KHÔNG đổi khi người dùng sửa tên hiển thị sau này. Field tạo
+   * trước khi có cơ chế này chưa có `code` — được backfill ngầm khi đọc qua
+   * API groups (xem lib/server/groups.ts), nên coi field này là optional ở
+   * type nhưng thực tế luôn có giá trị sau khi đi qua API.
+   */
+  code?: string;
   dataType: FieldDataType;
   required: boolean;
   order: number;
@@ -100,15 +109,54 @@ export interface ProposalGroup {
   createdAt: string;
   /** Ghi chú chân trang khi in đề xuất — vd "Người lập phiếu / Người duyệt". */
   printFooterNote?: string;
-  /** Mẫu in tự động (.docx) — điền dữ liệu vào đúng thẻ ${khoa} trong file, xem lib/print-template.ts. */
-  printTemplate?: PrintTemplate | null;
+  /** Chặn "In theo mẫu" nếu đề xuất chưa ở trạng thái approved — mặc định false. */
+  printRequireFullyApproved?: boolean;
 }
 
+/**
+ * 1 mẫu in (.docx) của 1 nhóm đề xuất — lưu ở subcollection
+ * `groups/{groupId}/printTemplates/{id}` (KHÔNG phải field đơn trên group
+ * doc), cho phép nhiều mẫu/nhóm + versioning + lịch sử độc lập.
+ */
 export interface PrintTemplate {
+  id: string;
+  groupId: string;
+  /** Tên hiển thị Sếp tự đặt, độc lập với fileName gốc. */
+  name: string;
   fileName: string;
   /** Đường dẫn thật trong Storage (không phải URL công khai). */
   path: string;
-  uploadedAt: string;
+  isDefault: boolean;
+  createdBy: { uid: string; name: string };
+  createdAt: string;
+  updatedAt: string;
+  /** Tăng mỗi lần thay file (không tăng khi chỉ đổi tên/đặt mặc định). */
+  version: number;
+  /** Danh sách thẻ ${...} phát hiện được trong file lúc quét (upload/thay file). */
+  detectedVariables: string[];
+  validation: {
+    errors: string[];
+    warnings: string[];
+  };
+}
+
+/**
+ * 1 lần xuất file theo mẫu — chỉ ghi metadata, KHÔNG ghi nội dung/giá trị
+ * thật của đề xuất (tránh lộ dữ liệu nhạy cảm vào log/lịch sử).
+ */
+export interface PrintExportRecord {
+  id: string;
+  requestId: string;
+  requestCode: string | null;
+  groupId: string;
+  templateId: string;
+  templateVersion: number;
+  format: "docx";
+  performedBy: { uid: string; name: string };
+  performedAt: string;
+  status: "success" | "failed";
+  resultPath: string | null;
+  errorMessage?: string;
 }
 
 export interface CategoryGroup {

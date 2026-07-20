@@ -1,0 +1,82 @@
+import { NextResponse } from "next/server";
+import { adminDb, getAttachmentsBucket } from "@/lib/firebase/admin";
+import { apiErrorResponse } from "@/lib/http";
+import { scanTemplateVariables } from "@/lib/server/print-engine";
+import { createPrintTemplate, listPrintTemplates } from "@/lib/server/print-templates";
+import { requireWriteAccess } from "@/lib/session";
+import type { ProposalGroup } from "@/lib/types";
+
+// Cần Node runtime (không phải Edge) để dùng firebase-admin/storage.
+export const runtime = "nodejs";
+
+const MAX_TEMPLATE_SIZE = 5 * 1024 * 1024; // 5MB
+
+function sanitizeFileName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+/** Danh sách mẫu in của 1 nhóm — dùng cho trang cài đặt VÀ hộp thoại "In theo mẫu". */
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const templates = await listPrintTemplates(id);
+    return NextResponse.json({ templates });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
+/** Tải mẫu in (.docx) mới lên cho 1 nhóm — quét biến thật ngay khi tải lên. */
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await requireWriteAccess();
+    const { id } = await params;
+
+    const groupSnap = await adminDb.collection("groups").doc(id).get();
+    if (!groupSnap.exists) {
+      return NextResponse.json({ error: "Không tìm thấy nhóm đề xuất." }, { status: 404 });
+    }
+    const group = { id: groupSnap.id, ...groupSnap.data() } as ProposalGroup;
+
+    const formData = await request.formData();
+    const file = formData.get("file");
+    const name = (formData.get("name") as string | null)?.trim();
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: "Chưa chọn tệp mẫu in." }, { status: 400 });
+    }
+    if (!file.name.toLowerCase().endsWith(".docx")) {
+      return NextResponse.json({ error: "Chỉ nhận file Word (.docx)." }, { status: 400 });
+    }
+    if (file.size > MAX_TEMPLATE_SIZE) {
+      return NextResponse.json({ error: "File mẫu in vượt quá 5MB." }, { status: 400 });
+    }
+
+    const path = `print-templates/${id}/${Date.now()}-${sanitizeFileName(file.name)}`;
+    const buffer = Buffer.from(await file.arrayBuffer());
+    try {
+      await getAttachmentsBucket().file(path).save(buffer, {
+        contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+    } catch {
+      return NextResponse.json(
+        { error: "Không đọc được file — có thể file bị hỏng hoặc không phải .docx hợp lệ." },
+        { status: 400 },
+      );
+    }
+
+    const scan = scanTemplateVariables(buffer, group);
+
+    const template = await createPrintTemplate(id, {
+      name: name || file.name.replace(/\.docx$/i, ""),
+      fileName: file.name,
+      path,
+      createdBy: { uid: session.uid, name: session.name },
+      detectedVariables: scan.detectedVariables,
+      validation: { errors: scan.errors, warnings: scan.warnings },
+    });
+
+    return NextResponse.json({ template }, { status: 201 });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
