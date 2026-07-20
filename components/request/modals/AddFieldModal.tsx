@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
 import Modal from "@/components/shared/Modal";
 import {
@@ -19,10 +19,11 @@ const choiceTypes: FieldDataType[] = ["single_choice", "multiple_choice"];
 const tableTypes: FieldDataType[] = ["table", "base_table"];
 
 export default function AddFieldModal() {
-  const { addFieldModalGroupId, closeAddFieldModal, getGroupById, addField } =
+  const { addFieldModalGroupId, editingField, closeAddFieldModal, getGroupById, addField, updateField } =
     useRequestContext();
 
   const group = addFieldModalGroupId ? getGroupById(addFieldModalGroupId) : undefined;
+  const isEditMode = editingField !== null;
 
   const [name, setName] = useState("");
   const [dataType, setDataType] = useState<FieldDataType>("short_text");
@@ -33,9 +34,13 @@ export default function AddFieldModal() {
   const [formula, setFormula] = useState("");
   const [errors, setErrors] = useState<{ name?: string; options?: string }>({});
 
-  const existingNames = useMemo(() => group?.fields.map((f) => f.name.trim().toLowerCase()) ?? [], [group]);
-
-  if (!addFieldModalGroupId || !group) return null;
+  const existingNames = useMemo(
+    () =>
+      group?.fields
+        .filter((f) => f.id !== editingField?.id)
+        .map((f) => f.name.trim().toLowerCase()) ?? [],
+    [group, editingField],
+  );
 
   const resetForm = () => {
     setName("");
@@ -47,6 +52,24 @@ export default function AddFieldModal() {
     setFormula("");
     setErrors({});
   };
+
+  useEffect(() => {
+    if (!addFieldModalGroupId) return;
+    if (editingField) {
+      setName(editingField.name);
+      setDataType(editingField.dataType);
+      setRequired(editingField.required);
+      setOptions(editingField.options?.length ? editingField.options : [""]);
+      setTableColumns(editingField.tableColumns?.length ? editingField.tableColumns : [""]);
+      setFormula(editingField.formula ?? "");
+      setErrors({});
+    } else {
+      resetForm();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addFieldModalGroupId, editingField]);
+
+  if (!addFieldModalGroupId || !group) return null;
 
   const handleClose = () => {
     closeAddFieldModal();
@@ -69,26 +92,28 @@ export default function AddFieldModal() {
     }
 
     setErrors({});
-    addField(
-      group.id,
-      {
-        name: name.trim(),
-        dataType,
-        required,
-        options: choiceTypes.includes(dataType) ? cleanedOptions : undefined,
-        tableColumns: tableTypes.includes(dataType)
-          ? tableColumns.map((c) => c.trim()).filter(Boolean)
-          : undefined,
-        formula: dataType === "formula" ? formula : undefined,
-      },
-      afterFieldId || null,
-    );
+    const fieldData = {
+      name: name.trim(),
+      dataType,
+      required,
+      options: choiceTypes.includes(dataType) ? cleanedOptions : undefined,
+      tableColumns: tableTypes.includes(dataType)
+        ? tableColumns.map((c) => c.trim()).filter(Boolean)
+        : undefined,
+      formula: dataType === "formula" ? formula : undefined,
+    };
+
+    if (isEditMode && editingField) {
+      updateField(group.id, editingField.id, fieldData);
+    } else {
+      addField(group.id, fieldData, afterFieldId || null);
+    }
     resetForm();
   };
 
   return (
     <Modal
-      title="Thêm trường dữ liệu"
+      title={isEditMode ? "Sửa trường dữ liệu" : "Thêm trường dữ liệu"}
       width={720}
       onClose={handleClose}
       footer={
@@ -97,7 +122,7 @@ export default function AddFieldModal() {
             Hủy bỏ
           </button>
           <button type="button" onClick={handleSubmit} className={confirmButtonClass}>
-            Thêm trường
+            {isEditMode ? "Lưu thay đổi" : "Thêm trường"}
           </button>
         </>
       }
@@ -138,20 +163,22 @@ export default function AddFieldModal() {
           </select>
         </Row>
 
-        <Row label="Thứ tự đứng sau">
-          <select
-            className={selectClass}
-            value={afterFieldId}
-            onChange={(e) => setAfterFieldId(e.target.value)}
-          >
-            <option value="">Đầu danh sách</option>
-            {group.fields.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.name}
-              </option>
-            ))}
-          </select>
-        </Row>
+        {!isEditMode && (
+          <Row label="Thứ tự đứng sau">
+            <select
+              className={selectClass}
+              value={afterFieldId}
+              onChange={(e) => setAfterFieldId(e.target.value)}
+            >
+              <option value="">Đầu danh sách</option>
+              {group.fields.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </Row>
+        )}
 
         {choiceTypes.includes(dataType) && (
           <Row label="Các phương án">

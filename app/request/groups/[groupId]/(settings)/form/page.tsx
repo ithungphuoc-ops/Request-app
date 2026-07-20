@@ -18,7 +18,8 @@ export default function ProposalFormPage() {
 
 function ProposalFormPageInner() {
   const params = useParams<{ groupId: string }>();
-  const { getGroupById, reorderFields, updateGroup, openAddFieldModal } = useRequestContext();
+  const { getGroupById, reorderFields, updateGroup, openAddFieldModal, openEditFieldModal } =
+    useRequestContext();
   const group = getGroupById(params.groupId);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
@@ -43,6 +44,10 @@ function ProposalFormPageInner() {
     updateGroup(group.id, {
       fields: group.fields.map((f) => (f.id === fieldId ? { ...f, required } : f)),
     });
+  };
+
+  const handleEdit = (field: (typeof sortedFields)[number]) => {
+    openEditFieldModal(group.id, field);
   };
 
   const handleRemove = (fieldId: string) => {
@@ -87,6 +92,7 @@ function ProposalFormPageInner() {
                   key={field.id}
                   field={field}
                   onToggleRequired={handleToggleRequired}
+                  onEdit={handleEdit}
                   onRemove={handleRemove}
                 />
               ))}

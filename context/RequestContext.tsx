@@ -36,10 +36,17 @@ interface RequestContextValue {
     field: Omit<ProposalField, "id" | "order">,
     afterFieldId?: string | null,
   ) => void;
+  updateField: (
+    groupId: string,
+    fieldId: string,
+    patch: Omit<ProposalField, "id" | "order">,
+  ) => void;
   removeField: (groupId: string, fieldId: string) => void;
   reorderFields: (groupId: string, orderedIds: string[]) => void;
   addFieldModalGroupId: string | null;
+  editingField: ProposalField | null;
   openAddFieldModal: (groupId: string) => void;
+  openEditFieldModal: (groupId: string, field: ProposalField) => void;
   closeAddFieldModal: () => void;
   /** Menu điều hướng (FuncBar) dạng trượt trên màn hình nhỏ — ẩn theo mặc định. */
   mobileNavOpen: boolean;
@@ -76,6 +83,7 @@ export function RequestProvider({ children }: { children: React.ReactNode }) {
   const [addFieldModalGroupId, setAddFieldModalGroupId] = useState<string | null>(
     null,
   );
+  const [editingField, setEditingField] = useState<ProposalField | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const refetchGroups = useCallback(async () => {
@@ -235,6 +243,24 @@ export function RequestProvider({ children }: { children: React.ReactNode }) {
     [getGroupById, mutateGroup],
   );
 
+  const updateField = useCallback(
+    (groupId: string, fieldId: string, patch: Omit<ProposalField, "id" | "order">) => {
+      const group = getGroupById(groupId);
+      if (!group) return;
+      const nextFields = group.fields.map((f) =>
+        f.id === fieldId ? { ...patch, id: f.id, order: f.order } : f,
+      );
+
+      mutateGroup(groupId, (g) => ({ ...g, fields: nextFields }));
+      setAddFieldModalGroupId(null);
+      setEditingField(null);
+      patchGroupRequest(groupId, { fields: nextFields }).catch(() => {
+        mutateGroup(groupId, (g) => ({ ...g, fields: group.fields }));
+      });
+    },
+    [getGroupById, mutateGroup],
+  );
+
   const removeField = useCallback(
     (groupId: string, fieldId: string) => {
       const group = getGroupById(groupId);
@@ -305,11 +331,23 @@ export function RequestProvider({ children }: { children: React.ReactNode }) {
     getGroupById,
     updateGroup,
     addField,
+    updateField,
     removeField,
     reorderFields,
     addFieldModalGroupId,
-    openAddFieldModal: (groupId: string) => setAddFieldModalGroupId(groupId),
-    closeAddFieldModal: () => setAddFieldModalGroupId(null),
+    editingField,
+    openAddFieldModal: (groupId: string) => {
+      setEditingField(null);
+      setAddFieldModalGroupId(groupId);
+    },
+    openEditFieldModal: (groupId: string, field: ProposalField) => {
+      setEditingField(field);
+      setAddFieldModalGroupId(groupId);
+    },
+    closeAddFieldModal: () => {
+      setAddFieldModalGroupId(null);
+      setEditingField(null);
+    },
     mobileNavOpen,
     setMobileNavOpen,
   };

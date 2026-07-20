@@ -2,16 +2,17 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2 } from "lucide-react";
+import { GripVertical, Pencil, Trash2 } from "lucide-react";
 import { fieldDataTypeLabels, type ProposalField } from "@/lib/types";
 
 interface FieldListItemProps {
   field: ProposalField;
   onToggleRequired: (fieldId: string, required: boolean) => void;
+  onEdit: (field: ProposalField) => void;
   onRemove: (fieldId: string) => void;
 }
 
-export default function FieldListItem({ field, onToggleRequired, onRemove }: FieldListItemProps) {
+export default function FieldListItem({ field, onToggleRequired, onEdit, onRemove }: FieldListItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: field.id,
   });
@@ -71,6 +72,15 @@ export default function FieldListItem({ field, onToggleRequired, onRemove }: Fie
       <span className="shrink-0 rounded bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600">
         {fieldDataTypeLabels[field.dataType]}
       </span>
+
+      <button
+        type="button"
+        onClick={() => onEdit(field)}
+        aria-label={`Sửa trường ${field.name}`}
+        className="shrink-0 text-gray-300 hover:text-[var(--color-action-blue)]"
+      >
+        <Pencil size={15} />
+      </button>
 
       <button
         type="button"
