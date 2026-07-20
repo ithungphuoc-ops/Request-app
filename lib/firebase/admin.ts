@@ -1,5 +1,6 @@
 import "server-only";
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
+import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 
@@ -49,6 +50,20 @@ function getAdminFirestore(): Firestore {
 }
 
 export const adminDb: Firestore = lazyProxy(getAdminFirestore);
+
+let authInstance: Auth | undefined;
+
+function getAdminAuthInstance(): Auth {
+  return (authInstance ??= getAuth(getAdminApp()));
+}
+
+/**
+ * Auth Admin SDK của CHÍNH project base-request-app (không phải "hpcore") —
+ * dùng để mint custom token cho cầu nối real-time (Firestore Client SDK),
+ * xem app/api/auth/firebase-token/route.ts và design.md của change
+ * add-comment-mentions-realtime.
+ */
+export const adminAuth: Auth = lazyProxy(getAdminAuthInstance);
 
 /**
  * Bucket Firebase Storage cho tài liệu đính kèm — tên bucket lấy từ

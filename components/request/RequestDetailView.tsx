@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, Forward, Paperclip, PenLine, Printer, RotateCcw, Send, Trash2, Undo2, X } from "lucide-react";
+import { Check, Copy, Forward, Paperclip, PenLine, Printer, RotateCcw, Trash2, Undo2, X } from "lucide-react";
 import RequestStatusBadge from "@/components/request/RequestStatusBadge";
 import ForwardModal from "@/components/request/ForwardModal";
 import ReasonModal from "@/components/request/ReasonModal";
+import CommentSection from "@/components/request/CommentSection";
 import { canApproverAct } from "@/lib/approval-logic";
 import { useCurrentSession } from "@/lib/useCurrentSession";
 import { fieldDataTypeLabels } from "@/lib/types";
@@ -66,9 +67,6 @@ export default function RequestDetailView({
   const [rejectOpen, setRejectOpen] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const [commentText, setCommentText] = useState("");
-  const [postingComment, setPostingComment] = useState(false);
-  const [commentError, setCommentError] = useState<string | null>(null);
   const [duplicating, setDuplicating] = useState(false);
   const [managing, setManaging] = useState(false);
 
@@ -173,30 +171,6 @@ export default function RequestDetailView({
     }
     setForwardOpen(false);
     onActed();
-  };
-
-  const postComment = async () => {
-    const text = commentText.trim();
-    if (!text) return;
-    setPostingComment(true);
-    setCommentError(null);
-    try {
-      const res = await fetch(`/api/requests/${request.id}/comments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}) as { error?: string });
-        throw new Error(body.error ?? "Không thể gửi thảo luận.");
-      }
-      setCommentText("");
-      onActed();
-    } catch (err) {
-      setCommentError(err instanceof Error ? err.message : "Có lỗi xảy ra.");
-    } finally {
-      setPostingComment(false);
-    }
   };
 
   return (
@@ -414,57 +388,12 @@ export default function RequestDetailView({
           <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-gray-500">
             Thảo luận
           </h2>
-
-          <div className="flex items-start gap-2">
-            <textarea
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  postComment();
-                }
-              }}
-              rows={2}
-              placeholder="Viết thảo luận của bạn"
-              className="min-w-0 flex-1 rounded border border-[var(--color-border)] px-3 py-2 text-[13px] outline-none focus:border-[var(--color-action-blue)]"
-            />
-            <button
-              type="button"
-              onClick={postComment}
-              disabled={postingComment || !commentText.trim()}
-              aria-label="Gửi thảo luận"
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-[var(--color-action-blue)] text-white hover:brightness-95 disabled:opacity-50"
-            >
-              <Send size={15} />
-            </button>
-          </div>
-          {commentError && (
-            <p className="mt-1 text-[12px] text-[var(--color-danger-red)]">{commentError}</p>
-          )}
-
-          <div className="mt-4 flex flex-col gap-3">
-            {(request.comments ?? []).length === 0 && (
-              <p className="text-[13px] text-gray-400">Chưa có thảo luận nào.</p>
-            )}
-            {(request.comments ?? [])
-              .slice()
-              .reverse()
-              .map((c) => (
-                <div key={c.id} className="flex items-start gap-2">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gray-400 text-[11px] font-semibold text-white">
-                    {c.avatarInitial}
-                  </span>
-                  <div className="min-w-0 flex-1 rounded bg-gray-50 px-3 py-2">
-                    <p className="text-[13px] font-medium text-gray-800">{c.authorName}</p>
-                    <p className="text-[13px] text-gray-700">{c.text}</p>
-                    <p className="mt-0.5 text-[11px] text-gray-400">
-                      {new Date(c.at).toLocaleString("vi-VN")}
-                    </p>
-                  </div>
-                </div>
-              ))}
-          </div>
+          <CommentSection
+            requestId={request.id}
+            initialComments={request.comments ?? []}
+            currentUid={currentUid}
+            isAdmin={isAdmin}
+          />
         </div>
       </div>
 

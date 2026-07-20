@@ -12,7 +12,11 @@ interface NotificationItem {
   at: string;
 }
 
-function buildNotifications(inbox: RequestInstance[], mine: RequestInstance[]): NotificationItem[] {
+function buildNotifications(
+  inbox: RequestInstance[],
+  mine: RequestInstance[],
+  mentioned: RequestInstance[],
+): NotificationItem[] {
   const items: NotificationItem[] = [];
 
   for (const r of inbox) {
@@ -41,6 +45,18 @@ function buildNotifications(inbox: RequestInstance[], mine: RequestInstance[]): 
     });
   }
 
+  // Không có khái niệm "đã đọc" riêng cho mục này — giống 2 nguồn trên
+  // (tính lại từ dữ liệu mỗi lần tải, xem design.md của change
+  // add-comment-mentions-realtime).
+  for (const r of mentioned) {
+    items.push({
+      id: `mentioned-${r.id}`,
+      requestId: r.id,
+      text: `Bạn được nhắc tới trong đề xuất "${r.groupNameSnapshot}"`,
+      at: r.updatedAt,
+    });
+  }
+
   return items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, 8);
 }
 
@@ -54,11 +70,24 @@ export default function NotificationBell() {
     Promise.all([
       fetch("/api/requests?scope=inbox").then((res) => (res.ok ? res.json() : { requests: [] })),
       fetch("/api/requests?scope=mine").then((res) => (res.ok ? res.json() : { requests: [] })),
+      fetch("/api/requests?scope=mentioned").then((res) => (res.ok ? res.json() : { requests: [] })),
     ])
-      .then(([inboxData, mineData]: [{ requests: RequestInstance[] }, { requests: RequestInstance[] }]) => {
-        setPendingCount(inboxData.requests?.length ?? 0);
-        setItems(buildNotifications(inboxData.requests ?? [], mineData.requests ?? []));
-      })
+      .then(
+        ([inboxData, mineData, mentionedData]: [
+          { requests: RequestInstance[] },
+          { requests: RequestInstance[] },
+          { requests: RequestInstance[] },
+        ]) => {
+          setPendingCount(inboxData.requests?.length ?? 0);
+          setItems(
+            buildNotifications(
+              inboxData.requests ?? [],
+              mineData.requests ?? [],
+              mentionedData.requests ?? [],
+            ),
+          );
+        },
+      )
       .catch(() => {});
   }, []);
 

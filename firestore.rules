@@ -1,0 +1,27 @@
+rules_version = '2';
+
+// Rules cho project Firebase RIÊNG của base-request-app ("hpcons-request") —
+// dữ liệu nghiệp vụ (groups/categories/requests). KHÁC với project "hpcore"
+// (hpcons-portal) dùng để xác minh SSO, xem lib/hpcore.ts.
+//
+// Toàn bộ GHI vẫn đi qua API route (Admin SDK) — rules ở đây chỉ mở ĐỌC cho
+// nhu cầu real-time (onSnapshot) trên trang chi tiết đề xuất, xem design.md
+// của change add-comment-mentions-realtime, Decision 3.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Không tái tạo đầy đủ logic canView() (submittedBy/approversSnapshot/
+    // followers/role) trong rules — chấp nhận mở đọc cho bất kỳ ai đã đăng
+    // nhập (qua custom token, xem app/api/auth/firebase-token/route.ts).
+    // Rủi ro còn lại: 1 nhân viên biết trước ID đề xuất không liên quan có
+    // thể tự mở listener đọc được — chấp nhận cho công cụ nội bộ, xem Risks
+    // trong design.md.
+    match /requests/{requestId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+  }
+}

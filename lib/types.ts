@@ -20,6 +20,10 @@ export interface TaggedUser {
   name: string;
   username: string;
   avatarInitial: string;
+  /** "group" = nhóm thành viên/phòng ban (chỉ dùng cho mention bình luận,
+   * xem lib/server/mentions.ts) — thiếu field = người (mặc định, tương thích
+   * ngược với usedFor/approverSteps/followers hiện có). */
+  kind?: "user" | "group";
 }
 
 export interface ProposalField {
@@ -142,6 +146,13 @@ export interface RequestComment {
   avatarInitial: string;
   text: string;
   at: string;
+  /** uid người + id nhóm thành viên/phòng ban được @mention trong bình luận này. */
+  mentionIds?: string[];
+  /** Luôn trỏ về 1 bình luận GỐC (không có parentId riêng) — trả lời giới hạn 1 cấp,
+   * xem design.md của change add-comment-mentions-realtime. */
+  parentId?: string | null;
+  /** Có giá trị nếu tác giả đã sửa lại nội dung sau khi gửi. */
+  editedAt?: string;
 }
 
 /**
@@ -179,6 +190,10 @@ export interface RequestInstance {
   deadlineAt: string | null;
   history: RequestHistoryEntry[];
   comments: RequestComment[];
+  /** Hợp nhất mọi uid từng được @mention (trực tiếp hoặc qua nhóm/phòng ban)
+   * trong các bình luận của đề xuất này — dùng để NotificationBell tính
+   * `scope=mentioned` mà không cần collection notifications riêng. */
+  mentionedUids?: string[];
   /** Xóa mềm — null nếu chưa xóa. Đề xuất đã xóa bị loại khỏi mọi danh sách
    * thường (mine/inbox/all/group...), chỉ hiện trong "Tất cả đề xuất hệ
    * thống" (scope=system, admin) để khôi phục khi cần. */

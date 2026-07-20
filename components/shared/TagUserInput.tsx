@@ -8,12 +8,17 @@ interface TagUserInputProps {
   value: TaggedUser[];
   onChange: (users: TaggedUser[]) => void;
   placeholder?: string;
+  /** Nguồn danh bạ — mặc định `/api/directory` (chỉ người, dùng cho usedFor/
+   * approverSteps/followers). Truyền `/api/directory/mentionable` để gồm cả
+   * nhóm thành viên/phòng ban (mention bình luận). */
+  directoryUrl?: string;
 }
 
 export default function TagUserInput({
   value,
   onChange,
   placeholder = "Gõ @ để tìm người dùng",
+  directoryUrl = "/api/directory",
 }: TagUserInputProps) {
   const [query, setQuery] = useState("");
   const [directory, setDirectory] = useState<TaggedUser[]>([]);
@@ -23,7 +28,7 @@ export default function TagUserInput({
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/directory")
+    fetch(directoryUrl)
       .then((res) => (res.ok ? res.json() : { directory: [] }))
       .then((data: { directory: TaggedUser[] }) => {
         if (!cancelled) setDirectory(data.directory ?? []);
@@ -34,7 +39,7 @@ export default function TagUserInput({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [directoryUrl]);
 
   useEffect(() => {
     const term = query.replace("@", "").trim().toLowerCase();
@@ -85,7 +90,11 @@ export default function TagUserInput({
             key={u.id}
             className="flex items-center gap-1 rounded-full bg-gray-100 py-0.5 pl-1 pr-1.5 text-[12px] text-gray-700"
           >
-            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[var(--color-action-blue)] text-[9px] font-semibold text-white">
+            <span
+              className={`flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-semibold text-white ${
+                u.kind === "group" ? "bg-teal-500" : "bg-[var(--color-action-blue)]"
+              }`}
+            >
               {u.avatarInitial}
             </span>
             {u.name}
@@ -120,11 +129,18 @@ export default function TagUserInput({
               onClick={() => selectUser(u)}
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] hover:bg-gray-50"
             >
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-action-blue)] text-[11px] font-semibold text-white">
+              <span
+                className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold text-white ${
+                  u.kind === "group" ? "bg-teal-500" : "bg-[var(--color-action-blue)]"
+                }`}
+              >
                 {u.avatarInitial}
               </span>
               <span>
                 {u.name} <span className="text-gray-400">@{u.username}</span>
+                {u.kind === "group" && (
+                  <span className="ml-1 text-[10px] text-teal-600">(nhóm/phòng ban)</span>
+                )}
               </span>
             </button>
           ))}

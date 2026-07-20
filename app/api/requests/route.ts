@@ -56,6 +56,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ requests });
     }
 
+    if (scope === "mentioned") {
+      // Đề xuất có bình luận @mention session.uid (trực tiếp hoặc qua nhóm/
+      // phòng ban, đã giãn sẵn vào mentionedUids lúc tạo bình luận — xem
+      // lib/server/mentions.ts). Dùng cho NotificationBell, không có khái
+      // niệm "đã đọc" riêng (giống 2 nguồn inbox/mine hiện có).
+      const snap = await adminDb
+        .collection("requests")
+        .where("mentionedUids", "array-contains", session.uid)
+        .get();
+      const requests = snap.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }) as RequestInstance)
+        .filter((r) => !r.deletedAt)
+        .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      return NextResponse.json({ requests });
+    }
+
     // Ba scope dưới đây phục vụ màn hình danh sách+chi tiết kiểu Base
     // ("Gửi đến tôi"/"Đang theo dõi"/"Tất cả") — không lọc theo Firestore
     // được vì approversSnapshot/followers là mảng object lồng, nên lấy hết
