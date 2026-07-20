@@ -1,12 +1,37 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { signInWithCustomToken } from "firebase/auth";
 import { Check, Pencil, Reply, Send, Trash2, X } from "lucide-react";
-import TagUserInput from "@/components/shared/TagUserInput";
 import { getFirebaseAuth, getFirebaseFirestore } from "@/lib/firebase/client";
 import type { RequestComment, TaggedUser } from "@/lib/types";
+
+/** Tìm "@" đang gõ dở ngay trước con trỏ (không tính @ dính liền chữ trước đó). */
+function findActiveMention(textUpToCursor: string): { start: number; query: string } | null {
+  const match = /(?:^|\s)@([^\s@]*)$/.exec(textUpToCursor);
+  if (!match) return null;
+  const query = match[1];
+  const start = textUpToCursor.length - query.length - 1;
+  return { start, query };
+}
+
+/** Nguồn thật của mentionIds là các token "@username" còn trong nội dung —
+ * xóa chữ thì tự động không còn tính là mention nữa. */
+function extractMentionIds(text: string, directory: TaggedUser[]): string[] {
+  const tokens = new Set(
+    text
+      .split(/\s+/)
+      .filter((t) => t.startsWith("@") && t.length > 1)
+      .map((t) => t.slice(1).toLowerCase()),
+  );
+  if (tokens.size === 0) return [];
+  const ids = new Set<string>();
+  for (const u of directory) {
+    if (tokens.has(u.username.toLowerCase())) ids.add(u.id);
+  }
+  return Array.from(ids);
+}
 
 /**
  * Khung "Thảo luận" — @mention (người + nhóm/phòng ban), cập nhật real-time
@@ -27,13 +52,38 @@ export default function CommentSection({
 }) {
   const [comments, setComments] = useState<RequestComment[]>(initialComments);
   const [text, setText] = useState("");
-  const [mentioned, setMentioned] = useState<TaggedUser[]>([]);
   const [replyTarget, setReplyTarget] = useState<RequestComment | null>(null);
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
   const bootstrapped = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Danh bạ @mention (người + nhóm/phòng ban) — tải 1 lần, dùng để gợi ý khi
+  // gõ "@" ngay trong ô bình luận và để suy ra mentionIds từ nội dung lúc gửi.
+  const [directory, setDirectory] = useState<TaggedUser[]>([]);
+  const [mentionStart, setMentionStart] = useState<number | null>(null);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [highlighted, setHighlighted] = useState(0);
+
+  useEffect(() => {
+    fetch("/api/directory/mentionable")
+      .then((res) => (res.ok ? res.json() : { directory: [] }))
+      .then((data: { directory: TaggedUser[] }) => setDirectory(data.directory ?? []))
+      .catch(() => setDirectory([]));
+  }, []);
+
+  const suggestions = useMemo(() => {
+    if (mentionQuery === null) return [];
+    const term = mentionQuery.trim().toLowerCase();
+    const pool = term
+      ? directory.filter(
+          (u) => u.name.toLowerCase().includes(term) || u.username.toLowerCase().includes(term),
+        )
+      : directory;
+    return pool.slice(0, 8);
+  }, [mentionQuery, directory]);
 
   // Đồng bộ lại nếu component cha tải lại đề xuất (vd sau khi duyệt/chuyển tiếp).
   useEffect(() => {
@@ -80,8 +130,66 @@ export default function CommentSection({
 
   const resetComposer = () => {
     setText("");
-    setMentioned([]);
     setReplyTarget(null);
+    setMentionStart(null);
+    setMentionQuery(null);
+  };
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setText(value);
+    const cursor = e.target.selectionStart ?? value.length;
+    const active = findActiveMention(value.slice(0, cursor));
+    setMentionStart(active?.start ?? null);
+    setMentionQuery(active?.query ?? null);
+    setHighlighted(0);
+  };
+
+  const insertMention = (user: TaggedUser) => {
+    if (mentionStart === null) return;
+    const cursor = textareaRef.current?.selectionStart ?? text.length;
+    const before = text.slice(0, mentionStart);
+    const after = text.slice(cursor);
+    const insertion = `@${user.username} `;
+    const nextText = `${before}${insertion}${after}`;
+    setText(nextText);
+    setMentionStart(null);
+    setMentionQuery(null);
+    requestAnimationFrame(() => {
+      const pos = before.length + insertion.length;
+      textareaRef.current?.focus();
+      textareaRef.current?.setSelectionRange(pos, pos);
+    });
+  };
+
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionQuery !== null && suggestions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlighted((h) => (h + 1) % suggestions.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlighted((h) => (h - 1 + suggestions.length) % suggestions.length);
+        return;
+      }
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        insertMention(suggestions[highlighted]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMentionStart(null);
+        setMentionQuery(null);
+        return;
+      }
+    }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      submit();
+    }
   };
 
   const submit = async () => {
@@ -95,7 +203,7 @@ export default function CommentSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: value,
-          mentionIds: mentioned.map((u) => u.id),
+          mentionIds: extractMentionIds(value, directory),
           parentId: replyTarget?.id ?? null,
         }),
       });
@@ -245,27 +353,18 @@ export default function CommentSection({
         </div>
       )}
 
-      <div className="mb-2">
-        <TagUserInput
-          value={mentioned}
-          onChange={setMentioned}
-          directoryUrl="/api/directory/mentionable"
-          placeholder="Gõ @ để tag người hoặc nhóm/phòng ban..."
-        />
-      </div>
-
-      <div className="flex items-start gap-2">
+      <div className="relative flex items-start gap-2">
         <textarea
+          ref={textareaRef}
           value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
+          onChange={handleTextChange}
+          onKeyDown={handleTextareaKeyDown}
+          onBlur={() => {
+            // Trễ 1 nhịp để kịp xử lý click chọn gợi ý trước khi đóng dropdown.
+            setTimeout(() => setMentionQuery(null), 150);
           }}
           rows={2}
-          placeholder="Viết thảo luận của bạn"
+          placeholder="Viết thảo luận của bạn — gõ @ để tag người hoặc nhóm/phòng ban"
           className="min-w-0 flex-1 rounded border border-[var(--color-border)] px-3 py-2 text-[13px] outline-none focus:border-[var(--color-action-blue)]"
         />
         <button
@@ -277,6 +376,36 @@ export default function CommentSection({
         >
           <Send size={15} />
         </button>
+
+        {mentionQuery !== null && suggestions.length > 0 && (
+          <div className="absolute left-0 top-full z-10 mt-1 max-h-[180px] w-[calc(100%-44px)] overflow-y-auto rounded border border-[var(--color-border)] bg-white shadow-lg">
+            {suggestions.map((u, i) => (
+              <button
+                key={u.id}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => insertMention(u)}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] hover:bg-gray-50 ${
+                  i === highlighted ? "bg-gray-50" : ""
+                }`}
+              >
+                <span
+                  className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white ${
+                    u.kind === "group" ? "bg-teal-500" : "bg-[var(--color-action-blue)]"
+                  }`}
+                >
+                  {u.avatarInitial}
+                </span>
+                <span>
+                  {u.name} <span className="text-gray-400">@{u.username}</span>
+                  {u.kind === "group" && (
+                    <span className="ml-1 text-[10px] text-teal-600">(nhóm/phòng ban)</span>
+                  )}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       {postError && <p className="mt-1 text-[12px] text-[var(--color-danger-red)]">{postError}</p>}
 
