@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { apiErrorResponse } from "@/lib/http";
+import { slugifyFieldName } from "@/lib/print-template";
 import {
   diffGroupPatch,
   ensureCategoryExists,
@@ -34,7 +35,23 @@ export async function PATCH(
       patch.category = patch.category.trim();
     }
     if (patch.fields) {
-      patch.fields = ensureFieldCodes(patch.fields).fields;
+      // Chuẩn hoá mã trường người dùng tự gõ (sửa tay ở Giai đoạn "sửa mã trường") rồi
+      // mới backfill mã còn thiếu — không tin client, luôn kiểm tra trùng ở server.
+      const normalized = patch.fields.map((f) =>
+        f.code ? { ...f, code: slugifyFieldName(f.code) || undefined } : f,
+      );
+      const seen = new Set<string>();
+      for (const f of normalized) {
+        if (!f.code) continue;
+        if (seen.has(f.code)) {
+          return NextResponse.json(
+            { error: `Mã trường "${f.code}" bị trùng giữa 2 trường trong cùng nhóm — đổi mã khác.` },
+            { status: 400 },
+          );
+        }
+        seen.add(f.code);
+      }
+      patch.fields = ensureFieldCodes(normalized).fields;
     }
 
     await ref.update({ ...patch });

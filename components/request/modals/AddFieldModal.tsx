@@ -12,6 +12,7 @@ import {
 } from "@/components/shared/form-styles";
 import { useRequestContext } from "@/context/RequestContext";
 import { fieldDataTypeLabels, type FieldDataType } from "@/lib/types";
+import { slugifyFieldName } from "@/lib/print-template";
 import { validateFieldName, validateFieldOptions } from "@/lib/validation";
 
 const dataTypes = Object.keys(fieldDataTypeLabels) as FieldDataType[];
@@ -26,13 +27,14 @@ export default function AddFieldModal() {
   const isEditMode = editingField !== null;
 
   const [name, setName] = useState("");
+  const [code, setCode] = useState("");
   const [dataType, setDataType] = useState<FieldDataType>("short_text");
   const [required, setRequired] = useState(false);
   const [afterFieldId, setAfterFieldId] = useState<string>("");
   const [options, setOptions] = useState<string[]>([""]);
   const [tableColumns, setTableColumns] = useState<string[]>([""]);
   const [formula, setFormula] = useState("");
-  const [errors, setErrors] = useState<{ name?: string; options?: string }>({});
+  const [errors, setErrors] = useState<{ name?: string; options?: string; code?: string }>({});
 
   const existingNames = useMemo(
     () =>
@@ -42,8 +44,17 @@ export default function AddFieldModal() {
     [group, editingField],
   );
 
+  const existingCodes = useMemo(
+    () =>
+      new Set(
+        group?.fields.filter((f) => f.id !== editingField?.id && f.code).map((f) => f.code as string) ?? [],
+      ),
+    [group, editingField],
+  );
+
   const resetForm = () => {
     setName("");
+    setCode("");
     setDataType("short_text");
     setRequired(false);
     setAfterFieldId("");
@@ -57,6 +68,7 @@ export default function AddFieldModal() {
     if (!addFieldModalGroupId) return;
     if (editingField) {
       setName(editingField.name);
+      setCode(editingField.code ?? "");
       setDataType(editingField.dataType);
       setRequired(editingField.required);
       setOptions(editingField.options?.length ? editingField.options : [""]);
@@ -86,13 +98,27 @@ export default function AddFieldModal() {
     }
 
     if (existingNames.includes(name.trim().toLowerCase())) {
-      setErrors({ name: "Mã trường phải duy nhất trong một nhóm (trùng tên trường đã có)." });
+      setErrors({ name: "Tên trường phải duy nhất trong một nhóm (trùng tên trường đã có)." });
       return;
+    }
+
+    let normalizedCode: string | undefined;
+    if (isEditMode) {
+      normalizedCode = slugifyFieldName(code);
+      if (!normalizedCode) {
+        setErrors({ code: "Mã trường không được để trống." });
+        return;
+      }
+      if (existingCodes.has(normalizedCode)) {
+        setErrors({ code: `Mã trường "${normalizedCode}" đã dùng cho trường khác trong nhóm này.` });
+        return;
+      }
     }
 
     setErrors({});
     const fieldData = {
       name: name.trim(),
+      code: normalizedCode,
       dataType,
       required,
       options: choiceTypes.includes(dataType) ? cleanedOptions : undefined,
@@ -136,6 +162,22 @@ export default function AddFieldModal() {
           />
           {errors.name && <p className="mt-1 text-[12px] text-[var(--color-danger-red)]">{errors.name}</p>}
         </Row>
+
+        {isEditMode && (
+          <Row label="Mã trường" required>
+            <input
+              className={`${inputClass} font-mono`}
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="vd: chi_tiet"
+            />
+            <p className="mt-1 text-[12px] text-gray-400">
+              Dùng làm thẻ <code className="rounded bg-gray-100 px-1 py-0.5">{"${" + (code || "ma_truong") + "}"}</code>{" "}
+              trong mẫu in — không đổi khi sửa tên hiển thị ở trên, chỉ đổi khi Sếp tự sửa ở đây.
+            </p>
+            {errors.code && <p className="mt-1 text-[12px] text-[var(--color-danger-red)]">{errors.code}</p>}
+          </Row>
+        )}
 
         <Row label="Loại dữ liệu" required>
           <select

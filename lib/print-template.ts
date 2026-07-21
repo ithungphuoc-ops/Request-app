@@ -130,16 +130,23 @@ function buildApprovalsBlock(request: RequestInstance): string {
     .join("\n");
 }
 
-/** approval_name_1..20 / title(rỗng) / datetime / note — người duyệt theo đúng thứ tự thực tế, tối đa 20 người. */
+/** approval_name_1..20 / title(rỗng) / datetime / note / action — người duyệt theo đúng thứ tự thực tế, tối đa 20 người. */
 function buildApprovalNumberedKeys(request: RequestInstance): Record<string, string> {
   const data: Record<string, string> = {};
   request.approversSnapshot.slice(0, MAX_APPROVAL_SLOTS).forEach((approver, i) => {
     const n = i + 1;
+    const state = request.approvers[i];
     const entry = findDecisionEntry(request, approver.name);
     data[`approval_name_${n}`] = approver.name;
     data[`approval_title_${n}`] = "";
     data[`approval_datetime_${n}`] = entry ? formatDateTimeVN(entry.at) : "";
     data[`approval_note_${n}`] = entry?.note ?? "";
+    data[`approval_action_${n}`] =
+      state?.decision === "approved"
+        ? "Đã chấp thuận"
+        : state?.decision === "rejected"
+          ? "Đã từ chối"
+          : "Chưa xử lý";
   });
   return data;
 }
@@ -232,10 +239,12 @@ export const SYSTEM_TEMPLATE_KEYS = [
   { key: "rejection_title", label: "Chức vụ người từ chối (chưa có dữ liệu)" },
   { key: "rejection_datetime", label: "Thời gian từ chối" },
   { key: "rejection_note", label: "Lý do từ chối" },
+  { key: "nhom_de_xuat", label: "Tên nhóm đề xuất (alias cũ của group_name, giữ tương thích mẫu đã có)" },
+  { key: "approval_action", label: "Hành động của người duyệt #1 (Đã chấp thuận/Đã từ chối/Chưa xử lý) — alias của approval_action_1" },
 ];
 
-/** approval_name_1..20, approval_title_1..20, approval_datetime_1..20, approval_note_1..20 — người duyệt theo thứ tự thực tế. */
-const APPROVAL_NUMBERED_REGEX = /^approval_(name|title|datetime|note)_([1-9]|1[0-9]|20)$/;
+/** approval_name_1..20, approval_title_1..20, approval_datetime_1..20, approval_note_1..20, approval_action_1..20 — người duyệt theo thứ tự thực tế. */
+const APPROVAL_NUMBERED_REGEX = /^approval_(name|title|datetime|note|action)_([1-9]|1[0-9]|20)$/;
 
 /** Kiểm tra 1 tên biến có nằm trong danh sách thẻ hệ thống (cố định + approval_*_N đánh số) không. */
 export function isKnownSystemKey(key: string): boolean {
@@ -271,6 +280,7 @@ export function fieldTemplateKeys(fields: ProposalField[]): { key: string; label
  * đây mọi khoá phẳng đơn giản (không có dấu chấm) nên không phát sinh vấn đề.
  */
 export function buildPrintTemplateData(request: RequestInstance): Record<string, string> {
+  const numberedApprovals = buildApprovalNumberedKeys(request);
   const data: Record<string, string> = {
     id: request.code ?? request.id,
     name: resolveNameValue(request),
@@ -286,8 +296,10 @@ export function buildPrintTemplateData(request: RequestInstance): Record<string,
     created_at_date: formatDateVN(request.submittedAt),
     created_at_datetime: formatDateTimeVN(request.submittedAt),
     approvals_name_username_title_datetime: buildApprovalsBlock(request),
+    // Alias không đánh số của approval_action_1, khớp mẫu thật Sếp đã dùng.
+    approval_action: numberedApprovals.approval_action_1 ?? "Chưa xử lý",
     ...buildApprovalFinalKeys(request),
-    ...buildApprovalNumberedKeys(request),
+    ...numberedApprovals,
     ...buildRejectionKeys(request),
   };
 

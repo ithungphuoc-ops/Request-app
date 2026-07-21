@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPrintTemplateData, ensureFieldCodes, slugifyFieldName } from "./print-template";
+import { buildPrintTemplateData, ensureFieldCodes, isKnownSystemKey, slugifyFieldName } from "./print-template";
 import type { ProposalField, RequestInstance } from "./types";
 
 describe("slugifyFieldName", () => {
@@ -160,6 +160,31 @@ describe("buildPrintTemplateData", () => {
     expect(data.approval_name_2).toBe("Người B");
     expect(data.approval_datetime_2).toBe(""); // chưa xử lý -> để trống
     expect(data.approval_title_1).toBe(""); // chưa có dữ liệu chức vụ -> luôn trống
+  });
+
+  it("approval_action_N + alias không đánh số approval_action (= approval_action_1)", () => {
+    const request = makeRequest({
+      approversSnapshot: [
+        { id: "u1", name: "Người A", username: "nguoia", avatarInitial: "A" },
+        { id: "u2", name: "Người B", username: "nguoib", avatarInitial: "B" },
+      ],
+      approvers: [
+        { id: "u1", decision: "approved" },
+        { id: "u2", decision: "rejected" },
+      ],
+    });
+    const data = buildPrintTemplateData(request);
+    expect(data.approval_action_1).toBe("Đã chấp thuận");
+    expect(data.approval_action_2).toBe("Đã từ chối");
+    expect(data.approval_action).toBe("Đã chấp thuận"); // alias của approval_action_1
+  });
+
+  it("isKnownSystemKey nhận diện đủ alias + biến đánh số, không nhận biến lạ", () => {
+    expect(isKnownSystemKey("nhom_de_xuat")).toBe(true); // alias cũ
+    expect(isKnownSystemKey("approval_action")).toBe(true); // alias không đánh số
+    expect(isKnownSystemKey("approval_action_5")).toBe(true);
+    expect(isKnownSystemKey("approval_action_21")).toBe(false); // vượt quá 20
+    expect(isKnownSystemKey("bien_khong_ton_tai")).toBe(false);
   });
 
   it("approval_final_* chỉ có giá trị khi status đã approved, lấy đúng người duyệt CUỐI", () => {
