@@ -2,14 +2,23 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Download, FileText, Pencil, Star, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, FileText, Pencil, Plus, Star, Trash2, Upload } from "lucide-react";
 import RequireAdminRole from "@/components/request/RequireAdminRole";
 import { useRequestContext } from "@/context/RequestContext";
-import { cancelButtonClass, confirmButtonClass, inputClass, textareaClass } from "@/components/shared/form-styles";
-import { fieldDataTypeLabels } from "@/lib/types";
+import { cancelButtonClass, confirmButtonClass, inputClass, selectClass, textareaClass } from "@/components/shared/form-styles";
+import { fieldDataTypeLabels, type FieldDataType } from "@/lib/types";
 import type { PrintTemplate } from "@/lib/types";
 import { COMPANY_NAME } from "@/lib/constants";
-import { SYSTEM_TEMPLATE_KEYS, fieldTemplateKeys } from "@/lib/print-template";
+import { SYSTEM_TEMPLATE_KEYS, fieldTemplateKeys, isKnownSystemKey } from "@/lib/print-template";
+
+const CREATABLE_DATA_TYPES: FieldDataType[] = [
+  "short_text",
+  "paragraph",
+  "date",
+  "datetime",
+  "integer",
+  "decimal",
+];
 
 export default function PrintSettingsPage() {
   return (
@@ -21,7 +30,7 @@ export default function PrintSettingsPage() {
 
 function PrintSettingsPageInner() {
   const params = useParams<{ groupId: string }>();
-  const { getGroupById, updateGroup } = useRequestContext();
+  const { getGroupById, updateGroup, addField } = useRequestContext();
   const group = getGroupById(params.groupId);
   const [footerNote, setFooterNote] = useState(group?.printFooterNote ?? "");
   const [saved, setSaved] = useState(false);
@@ -36,6 +45,9 @@ function PrintSettingsPageInner() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
   const [replaceTargetId, setReplaceTargetId] = useState<string | null>(null);
+  const [creatingCode, setCreatingCode] = useState<string | null>(null);
+  const [creatingName, setCreatingName] = useState("");
+  const [creatingType, setCreatingType] = useState<FieldDataType>("short_text");
 
   const refetchTemplates = () => {
     if (!group) return;
@@ -166,6 +178,21 @@ function PrintSettingsPageInner() {
   };
 
   const sortedFields = [...group.fields].sort((a, b) => a.order - b.order);
+
+  // Mã trường được nhắc tới trong (các) mẫu đã tải lên nhưng CHƯA có field
+  // nào khớp — không tính thẻ hệ thống hay thẻ column.* (thuộc trường Bảng,
+  // xử lý riêng, không phải "trường thiếu").
+  const existingCodes = new Set(sortedFields.map((f) => f.code).filter(Boolean) as string[]);
+  const missingFieldCodes = Array.from(
+    new Set(templates.flatMap((t) => t.detectedVariables)),
+  ).filter((v) => !isKnownSystemKey(v) && !v.startsWith("column.") && !existingCodes.has(v));
+
+  const createMissingField = (code: string) => {
+    const name = creatingName.trim() || code;
+    setCreatingCode(null);
+    setCreatingName("");
+    addField(group.id, { name, code, dataType: creatingType, required: false }, null);
+  };
 
   return (
     <div>
@@ -347,6 +374,76 @@ function PrintSettingsPageInner() {
             if (file && replaceTargetId) replaceTemplateFile(replaceTargetId, file);
           }}
         />
+
+        {missingFieldCodes.length > 0 && (
+          <div className="mt-4 rounded border border-orange-200 bg-orange-50 px-3 py-2.5">
+            <p className="mb-1.5 flex items-center gap-1 text-[12px] font-medium text-orange-700">
+              <AlertTriangle size={13} /> Mẫu có dùng {missingFieldCodes.length} mã trường chưa tồn
+              tại — in ra sẽ để trống, bấm &quot;Tạo trường&quot; để thêm ngay:
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {missingFieldCodes.map((code) =>
+                creatingCode === code ? (
+                  <div key={code} className="flex flex-wrap items-center gap-1.5">
+                    <input
+                      autoFocus
+                      className={`${inputClass} h-7 w-[200px] text-[12px]`}
+                      value={creatingName}
+                      onChange={(e) => setCreatingName(e.target.value)}
+                      placeholder={code}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") createMissingField(code);
+                        if (e.key === "Escape") setCreatingCode(null);
+                      }}
+                    />
+                    <select
+                      className={`${selectClass} h-7 w-[140px] text-[12px]`}
+                      value={creatingType}
+                      onChange={(e) => setCreatingType(e.target.value as FieldDataType)}
+                    >
+                      {CREATABLE_DATA_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {fieldDataTypeLabels[t]}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => createMissingField(code)}
+                      className="rounded bg-[var(--color-action-blue)] px-2 py-1 text-[11px] font-medium text-white hover:brightness-95"
+                    >
+                      Tạo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCreatingCode(null)}
+                      className={`${cancelButtonClass} h-7 px-2 text-[11px]`}
+                    >
+                      Huỷ
+                    </button>
+                  </div>
+                ) : (
+                  <div key={code} className="flex items-center gap-2 text-[12px]">
+                    <code className="rounded bg-white px-1.5 py-0.5 font-mono text-orange-700">
+                      ${"{" + code + "}"}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCreatingCode(code);
+                        setCreatingName(code);
+                        setCreatingType("short_text");
+                      }}
+                      className="flex items-center gap-0.5 text-[11px] font-medium text-[var(--color-action-blue)] hover:underline"
+                    >
+                      <Plus size={12} /> Tạo trường
+                    </button>
+                  </div>
+                ),
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="mt-4 border-t border-gray-100 pt-3">
           <p className="mb-1.5 text-[12px] font-medium text-gray-600">
