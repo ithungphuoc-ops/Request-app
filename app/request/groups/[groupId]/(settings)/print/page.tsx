@@ -191,7 +191,10 @@ function PrintSettingsPageInner() {
     const name = creatingName.trim() || code;
     setCreatingCode(null);
     setCreatingName("");
-    addField(group.id, { name, code, dataType: creatingType, required: false }, null);
+    // Thêm vào CUỐI danh sách (sau field cuối cùng hiện có) — không chèn lên
+    // đầu, tránh xáo trộn thứ tự các field Sếp đã sắp xếp sẵn trên form.
+    const lastFieldId = sortedFields.length > 0 ? sortedFields[sortedFields.length - 1].id : null;
+    addField(group.id, { name, code, dataType: creatingType, required: false }, lastFieldId);
   };
 
   return (
