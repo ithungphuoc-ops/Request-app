@@ -202,7 +202,10 @@ export async function POST(request: Request) {
       approversSnapshot = isDraft
         ? []
         : await resolveApproverSteps(group.approverSteps, session.uid);
-      followers = group.followers;
+      // Người gửi có thể thêm người theo dõi ngoài danh sách mặc định của
+      // nhóm (giống UI Base) — client luôn khởi tạo từ group.followers rồi
+      // cho thêm, nên body.followers là danh sách CUỐI CÙNG đã gồm mặc định.
+      followers = body.followers ?? group.followers;
       deadlineAt = isDraft ? null : computeDeadline(group.slaHours, now);
     } else {
       // Đề xuất trực tiếp: không có mẫu, người tạo tự chọn người duyệt.

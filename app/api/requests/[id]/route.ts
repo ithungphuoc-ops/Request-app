@@ -130,7 +130,10 @@ export async function PATCH(
         approvalFlow: group.approvalFlow,
         approversSnapshot,
         approvers: buildInitialApprovers(approversSnapshot),
-        followers: group.followers,
+        // Giữ đúng người theo dõi người gửi đã chỉnh (mặc định + thêm tay),
+        // không ghi đè về danh sách mặc định của nhóm khi gửi chính thức từ
+        // nháp — nhất quán với nhánh "chỉ lưu nháp" ở trên (dòng `followers`).
+        followers,
         status: "pending" as const,
         deadlineAt,
         updatedAt: nowIso,

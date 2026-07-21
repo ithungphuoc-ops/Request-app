@@ -6,6 +6,7 @@ import { Loader2, Paperclip, Plus, Trash2, X } from "lucide-react";
 import { useRequestContext } from "@/context/RequestContext";
 import { HPCORE_MEMBER_GROUPS_API } from "@/lib/constants";
 import { deserializeTableRows, toWireTableRows } from "@/lib/table-field";
+import TagUserInput from "@/components/shared/TagUserInput";
 import {
   cancelButtonClass,
   confirmButtonClass,
@@ -14,7 +15,7 @@ import {
   selectClass,
   textareaClass,
 } from "@/components/shared/form-styles";
-import type { ProposalField, RequestAttachment, RequestInstance } from "@/lib/types";
+import type { ProposalField, RequestAttachment, RequestInstance, TaggedUser } from "@/lib/types";
 
 const MAX_ATTACHMENTS = 6;
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024; // 10MB
@@ -37,19 +38,44 @@ export default function SubmitRequestPage() {
 
   const [draftId, setDraftId] = useState<string | null>(searchParams.get("draftId"));
   const [values, setValues] = useState<FieldValues>({});
+  const [followers, setFollowers] = useState<TaggedUser[]>(group?.followers ?? []);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+  const [approverPreview, setApproverPreview] = useState<
+    { status: "loading" } | { status: "ok"; approvers: TaggedUser[] } | { status: "error"; message: string }
+  >({ status: "loading" });
 
   useEffect(() => {
     if (!draftId) return;
     fetch(`/api/requests/${draftId}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error("fetch failed"))))
-      .then((data: { request: RequestInstance }) => setValues(data.request.values ?? {}))
+      .then((data: { request: RequestInstance }) => {
+        setValues(data.request.values ?? {});
+        setFollowers(data.request.followers ?? []);
+      })
       .catch(() => setSubmitError("Không tải được bản nháp."));
   }, [draftId]);
+
+  useEffect(() => {
+    if (!group) return;
+    setApproverPreview({ status: "loading" });
+    fetch(`/api/groups/${group.id}/approver-preview`)
+      .then(async (res) => {
+        const body = (await res.json()) as { approvers?: TaggedUser[]; error?: string };
+        if (!res.ok) throw new Error(body.error ?? "Không xác định được người duyệt.");
+        setApproverPreview({ status: "ok", approvers: body.approvers ?? [] });
+      })
+      .catch((err) =>
+        setApproverPreview({
+          status: "error",
+          message: err instanceof Error ? err.message : "Không xác định được người duyệt.",
+        }),
+      );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ cần chạy lại khi đổi nhóm, không phải mọi lần group đổi tham chiếu.
+  }, [group?.id]);
 
   if (!group) return null;
 
@@ -79,14 +105,14 @@ export default function SubmitRequestPage() {
         const res = await fetch(`/api/requests/${draftId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ values: payloadValues, isDraft: true }),
+          body: JSON.stringify({ values: payloadValues, followers, isDraft: true }),
         });
         if (!res.ok) throw new Error("Không thể lưu nháp.");
       } else {
         const res = await fetch("/api/requests", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ groupId: group.id, values: payloadValues, isDraft: true }),
+          body: JSON.stringify({ groupId: group.id, values: payloadValues, followers, isDraft: true }),
         });
         if (!res.ok) throw new Error("Không thể lưu nháp.");
         const data = (await res.json()) as { request: RequestInstance };
@@ -121,12 +147,12 @@ export default function SubmitRequestPage() {
         ? await fetch(`/api/requests/${draftId}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ values: payloadValues, isDraft: false }),
+            body: JSON.stringify({ values: payloadValues, followers, isDraft: false }),
           })
         : await fetch("/api/requests", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ groupId: group.id, values: payloadValues }),
+            body: JSON.stringify({ groupId: group.id, values: payloadValues, followers }),
           });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}) as { error?: string });
@@ -141,10 +167,12 @@ export default function SubmitRequestPage() {
   };
 
   return (
-    <div className="mx-auto max-w-[820px] px-8 py-6">
+    <div className="mx-auto max-w-[960px] px-8 py-6">
       <h1 className="text-[22px] font-bold text-gray-900">Gửi đề xuất: {group.name}</h1>
       {group.description && (
-        <p className="mt-1 text-[13px] text-gray-500">{group.description}</p>
+        <div className="mt-3 whitespace-pre-line rounded-[6px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] leading-relaxed text-emerald-900">
+          {group.description}
+        </div>
       )}
 
       <div className="mt-5 rounded-[6px] border border-[var(--color-border)] bg-white p-6 shadow-sm">
@@ -173,6 +201,47 @@ export default function SubmitRequestPage() {
                 onChange={(value) => setFieldValue(field.id, value)}
               />
             ))}
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:gap-4">
+            <label className="shrink-0 pt-1.5 text-[13px] font-semibold text-gray-700 sm:w-[220px]">
+              Người duyệt
+            </label>
+            <div className="min-w-0 flex-1 pt-1.5">
+              {approverPreview.status === "loading" && (
+                <p className="text-[13px] text-gray-400">Đang xác định người duyệt...</p>
+              )}
+              {approverPreview.status === "error" && (
+                <p className="text-[13px] text-[var(--color-danger-red)]">{approverPreview.message}</p>
+              )}
+              {approverPreview.status === "ok" && approverPreview.approvers.length === 0 && (
+                <p className="text-[13px] text-gray-400">Nhóm này chưa cấu hình người duyệt.</p>
+              )}
+              {approverPreview.status === "ok" && approverPreview.approvers.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {approverPreview.approvers.map((a, i) => (
+                    <span
+                      key={`${a.id}-${i}`}
+                      className="flex items-center gap-1.5 rounded-full bg-gray-100 py-0.5 pl-1 pr-2.5 text-[12px] text-gray-700"
+                    >
+                      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[var(--color-action-blue)] text-[9px] font-semibold text-white">
+                        {a.avatarInitial}
+                      </span>
+                      {group.approvalFlow === "sequential" ? `${i + 1}. ${a.name}` : a.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:gap-4">
+            <label className="shrink-0 pt-1.5 text-[13px] font-semibold text-gray-700 sm:w-[220px]">
+              Người theo dõi
+            </label>
+            <div className="min-w-0 flex-1">
+              <TagUserInput value={followers} onChange={setFollowers} />
+            </div>
+          </div>
         </div>
 
         {submitError && (
@@ -235,9 +304,16 @@ function FieldRow({
     );
   }
 
+  // Field kiểu Bảng thường có nhiều cột — xếp nhãn lên trên và cho bảng dùng
+  // toàn bộ chiều rộng còn lại (thay vì nhường 220px cho nhãn bên trái) để đỡ
+  // phải cuộn ngang khi nhóm có ≥5 cột (vd "chi tiết bảng").
+  const isTable = field.dataType === "table" || field.dataType === "base_table";
+
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:gap-4">
-      <label className="shrink-0 pt-1.5 text-[13px] font-semibold text-gray-700 sm:w-[220px]">
+    <div className={`flex flex-col gap-2 ${isTable ? "" : "sm:flex-row sm:gap-4"}`}>
+      <label
+        className={`shrink-0 text-[13px] font-semibold text-gray-700 ${isTable ? "" : "pt-1.5 sm:w-[220px]"}`}
+      >
         {field.name}
         {field.required && <span className="ml-0.5 text-[var(--color-danger-red)]">*</span>}
       </label>
@@ -394,7 +470,11 @@ function FieldControl({
                 <tr>
                   <th className="w-8 px-2 py-1.5 text-left text-gray-400">#</th>
                   {columns.map((col, i) => (
-                    <th key={i} className="min-w-[120px] px-2 py-1.5 text-left font-medium text-gray-600">
+                    <th
+                      key={i}
+                      title={col}
+                      className="min-w-[96px] max-w-[220px] truncate px-2 py-1.5 text-left font-medium text-gray-600"
+                    >
                       {col}
                     </th>
                   ))}
