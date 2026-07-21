@@ -15,6 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Base Request",
   description: "Giao diện thiết lập Base Request",
+  icons: { icon: "/logo.png" },
 };
 
 export default function RootLayout({
