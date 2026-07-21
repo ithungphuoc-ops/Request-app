@@ -9,6 +9,24 @@ import type { ProposalGroup, RequestInstance } from "@/lib/types";
 
 const TAG_REGEX = /\$\{([^}]*)\}/g;
 
+/**
+ * Word thường tự tách 1 đoạn văn bản liên tục thành nhiều <w:r> (run) khác
+ * nhau — do gõ ngắt quãng, tự động lưu, kiểm tra chính tả... — khiến 1 thẻ
+ * ${...} bị chia làm 2-3 mảnh XML, không còn là 1 chuỗi liền mạch để regex
+ * tìm thấy. Gộp lại các run liền kề (bỏ qua vài phần tử vô hại xen giữa như
+ * proofErr/bookmark do Word chèn) để khôi phục thẻ về dạng liền mạch trước
+ * khi quét hoặc render — đây là bước xử lý bắt buộc với file Word thật do
+ * người dùng tự gõ tay, khác hẳn file test dựng sẵn.
+ */
+const RUN_BOUNDARY_REGEX = new RegExp(
+  "</w:t></w:r>(?:<w:proofErr[^>]*/>|<w:bookmarkStart[^>]*/>|<w:bookmarkEnd[^>]*/>)*<w:r(?:\\s[^>]*)?><w:t(?:\\s[^>]*)?>",
+  "g",
+);
+
+function normalizeRuns(xml: string): string {
+  return xml.replace(RUN_BOUNDARY_REGEX, "");
+}
+
 function stripXmlTags(xml: string): string {
   return xml.replace(/<[^>]+>/g, "");
 }
@@ -117,11 +135,20 @@ function checkColumnTagsInsideTables(documentXml: string): string[] {
   return warnings;
 }
 
+/** Mở docx, gộp run bị tách (normalizeRuns) trên document + header/footer, trả lại buffer đã "vá" sẵn sàng quét/render. */
+function normalizeDocxBuffer(buffer: Buffer): Buffer {
+  const zip = new PizZip(buffer);
+  const parts = zip.file(/word\/(document|header\d*|footer\d*)\.xml$/) ?? [];
+  for (const part of parts) {
+    zip.file(part.name, normalizeRuns(part.asText()));
+  }
+  return zip.generate({ type: "nodebuffer" });
+}
+
 /**
  * Thử biên dịch mẫu bằng chính docxtemplater (nullGetter cho phép thiếu dữ
- * liệu) — đây là nguồn xác thực nhất để phát hiện thẻ ${...} bị tách thành
- * nhiều đoạn định dạng (tô đậm/đổi màu giữa chừng khiến Word chia thẻ ra
- * nhiều run XML, không đọc được trọn vẹn) hoặc cú pháp XML bị hỏng.
+ * liệu) — đây là nguồn xác thực nhất để phát hiện cú pháp thẻ ${...} bị hỏng
+ * thật sự (sau khi đã gộp run ở normalizeDocxBuffer).
  */
 function detectTemplateCompileErrors(buffer: Buffer): string[] {
   try {
@@ -144,7 +171,7 @@ function detectTemplateCompileErrors(buffer: Buffer): string[] {
     if (details && details.length > 0) {
       return details.map((e) => {
         const tag = e.properties?.xtag ? ` (gần thẻ "\${${e.properties.xtag}}")` : "";
-        return `Mẫu có lỗi cú pháp thẻ${tag}: ${e.properties?.explanation ?? e.properties?.id ?? "không rõ nguyên nhân"}. Có thể do thẻ bị tô đậm/đổi màu một phần — gõ lại liền mạch, không định dạng riêng lẻ giữa thẻ.`;
+        return `Mẫu có lỗi cú pháp thẻ${tag}: ${e.properties?.explanation ?? e.properties?.id ?? "không rõ nguyên nhân"}. Có thể do thẻ bị chỉnh sửa cách quãng (theo dõi thay đổi, đánh dấu...) — gõ lại liền mạch trong 1 lần, tắt "Theo dõi thay đổi" trước khi gõ thẻ.`;
       });
     }
     return [
@@ -161,9 +188,11 @@ export interface ScanResult {
 
 /** Quét toàn bộ biến ${...} trong file .docx (document + header/footer), đối chiếu hệ thống thẻ + mã trường/mã bảng của nhóm. */
 export function scanTemplateVariables(buffer: Buffer, group: ProposalGroup): ScanResult {
+  let normalizedBuffer: Buffer;
   let zip: PizZip;
   try {
-    zip = new PizZip(buffer);
+    normalizedBuffer = normalizeDocxBuffer(buffer);
+    zip = new PizZip(normalizedBuffer);
   } catch {
     return {
       detectedVariables: [],
@@ -202,7 +231,7 @@ export function scanTemplateVariables(buffer: Buffer, group: ProposalGroup): Sca
     }
   }
 
-  errors.push(...detectTemplateCompileErrors(buffer));
+  errors.push(...detectTemplateCompileErrors(normalizedBuffer));
 
   return { detectedVariables: Array.from(detected), errors, warnings };
 }
@@ -228,7 +257,7 @@ export function duplicateTableRows(
   group: ProposalGroup,
   request: RequestInstance,
 ): string {
-  let result = documentXml;
+  let result = normalizeRuns(documentXml);
   const tableFields = group.fields.filter(
     (f) => f.code && (f.dataType === "table" || f.dataType === "base_table"),
   );
@@ -272,7 +301,9 @@ export function renderPrintTemplate(
   group: ProposalGroup,
   request: RequestInstance,
 ): Buffer {
-  const zip = new PizZip(templateBuffer);
+  // Gộp run bị Word tách trước tiên (document + header/footer) — nếu không,
+  // thẻ bị tách vẫn còn nguyên khi tới bước nhân dòng/điền dữ liệu bên dưới.
+  const zip = new PizZip(normalizeDocxBuffer(templateBuffer));
   const documentPath = "word/document.xml";
   const documentFile = zip.file(documentPath);
   if (documentFile) {

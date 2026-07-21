@@ -170,6 +170,17 @@ describe("scanTemplateVariables", () => {
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.detectedVariables).toEqual([]);
   });
+
+  it("vẫn nhận diện đúng biến khi Word tách thẻ thành nhiều run (gộp run trước khi quét)", () => {
+    const xml = `<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+      <w:body>
+        <w:tbl><w:tr><w:tc><w:p><w:r><w:t>\${column.chi_</w:t></w:r><w:proofErr w:type="spellStart"/><w:r><w:t>tiet.0}</w:t></w:r></w:p></w:tc></w:tr></w:tbl>
+      </w:body>
+    </w:document>`;
+    const result = scanTemplateVariables(buildDocxBuffer(xml), group);
+    expect(result.detectedVariables).toContain("column.chi_tiet.0");
+    expect(result.errors).toEqual([]);
+  });
 });
 
 describe("duplicateTableRows", () => {
@@ -227,6 +238,31 @@ describe("duplicateTableRows", () => {
     const result = duplicateTableRows(templateXml, group, request);
     expect(result).toContain("A &amp; B &lt;C&gt;");
     expect(result).toContain("&quot;D&quot;");
+  });
+
+  it("vẫn nhân dòng đúng khi Word tự tách thẻ ${column...} thành nhiều run (trường hợp file thật gõ tay)", () => {
+    // Mô phỏng đúng lỗi thực tế: "${column.chi_tiet.0}" bị Word chia làm 2 run
+    // (kèm 1 <w:proofErr/> xen giữa do kiểm tra chính tả) thay vì nằm gọn
+    // trong 1 <w:t> như file test dựng sẵn ở trên.
+    const splitXml = `<w:tbl>
+      <w:tr><w:tc><w:p><w:r><w:t>Stt</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Tên</w:t></w:r></w:p></w:tc></w:tr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>\${column.chi_</w:t></w:r><w:proofErr w:type="spellStart"/><w:r><w:t>tiet.0}</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>\${column.chi_tiet.1}</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>`;
+    const request = makeRequest({
+      fieldsSnapshot: [tableField],
+      values: { f3: [{ cells: ["Thùng PC", "1"] }, { cells: ["Màn hình", "2"] }] },
+    });
+    const result = duplicateTableRows(splitXml, group, request);
+    expect(result).toContain("Thùng PC");
+    expect(result).toContain("Màn hình");
+    const rows = result.match(/<w:tr>.*?<\/w:tr>/gs) ?? [];
+    expect(rows.length).toBe(3); // 1 header + 2 dòng dữ liệu
+    expect(rows[1]).toContain(">1<");
+    expect(rows[2]).toContain(">2<");
+    expect(result).not.toContain("${column");
   });
 });
 
