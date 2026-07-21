@@ -44,7 +44,18 @@ let firestoreInstance: Firestore | undefined;
 function getAdminFirestore(): Firestore {
   if (!firestoreInstance) {
     firestoreInstance = getFirestore(getAdminApp());
-    firestoreInstance.settings({ ignoreUndefinedProperties: true });
+    try {
+      firestoreInstance.settings({ ignoreUndefinedProperties: true });
+    } catch (err) {
+      // Next.js dev-mode hot-reload nạp lại module này (reset biến module-level
+      // firestoreInstance/app) trong khi app "[DEFAULT]" của SDK vẫn còn sống
+      // từ trước (registry toàn cục không reset theo) — getFirestore() trả về
+      // ĐÚNG instance cũ đã settings() rồi, gọi lại chỉ ném lỗi vô hại, bỏ qua
+      // để không crash cả request. Lỗi khác thật sự thì vẫn ném lại như cũ.
+      if (!(err instanceof Error) || !err.message.includes("already been initialized")) {
+        throw err;
+      }
+    }
   }
   return firestoreInstance;
 }
