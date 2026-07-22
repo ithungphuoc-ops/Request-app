@@ -8,6 +8,7 @@ export interface CurrentSession {
   email: string;
   name: string;
   role: Role;
+  avatarUrl: string | null;
 }
 
 /** Phiên hiện tại phía client — dùng để ẩn/hiện UI theo vai trò (server vẫn là nơi chặn thật). */

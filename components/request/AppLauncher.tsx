@@ -104,9 +104,18 @@ export default function AppLauncher({ onClose }: { onClose: () => void }) {
       >
         <div className="flex flex-col gap-3 bg-gray-50 px-6 py-4 sm:flex-row sm:items-center">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--color-action-blue)] text-[14px] font-semibold text-white">
-              {session?.name.trim().charAt(0).toUpperCase() ?? "?"}
-            </span>
+            {session?.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={session.avatarUrl}
+                alt={session.name}
+                className="h-10 w-10 shrink-0 rounded-full object-cover"
+              />
+            ) : (
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--color-action-blue)] text-[14px] font-semibold text-white">
+                {session?.name.trim().charAt(0).toUpperCase() ?? "?"}
+              </span>
+            )}
             <div className="min-w-0">
               <p className="truncate text-[14px] font-bold text-gray-900">
                 {session?.name ?? "Đang tải..."}

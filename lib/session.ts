@@ -9,31 +9,39 @@ export interface Session {
   email: string;
   name: string;
   role: Role;
+  /** Ảnh đại diện đồng bộ trực tiếp từ users/{uid}.avatarUrl (app tổng) — đọc
+   * sống mỗi lần xác minh phiên, null nếu app tổng chưa có ảnh. */
+  avatarUrl: string | null;
 }
 
 const VALID_ROLES: readonly Role[] = ["owner", "admin", "manager", "employee"];
 
 /**
  * Đọc thẳng hồ sơ users/{uid} của app tổng — vai trò TOÀN CỤC (không phải
- * per-app) và họ tên, gộp 1 lần đọc. Không dùng app_permissions: app này
- * không có hệ vai trò riêng, không cần bước gán quyền thủ công nào thêm.
- * Lỗi đọc cross-project → rơi về "employee" + email (không chặn đăng nhập).
+ * per-app), họ tên, và ảnh đại diện, gộp 1 lần đọc SỐNG (không cache) mỗi
+ * lần xác minh phiên, để avatar cập nhật ở app tổng lan sang ngay lần đăng
+ * nhập/SSO check kế tiếp. Không dùng app_permissions: app này không có hệ
+ * vai trò riêng, không cần bước gán quyền thủ công nào thêm.
+ * Lỗi đọc cross-project → rơi về "employee" + email + không avatar (không
+ * chặn đăng nhập).
  */
 async function fetchProfile(
   uid: string,
   email: string,
-): Promise<{ role: Role; name: string }> {
+): Promise<{ role: Role; name: string; avatarUrl: string | null }> {
   try {
     const snap = await getHpcoreDb().collection("users").doc(uid).get();
     const data = snap.data();
     const role = data?.role;
     const fullName = (data?.fullName as string | undefined)?.trim();
+    const avatarUrl = (data?.avatarUrl as string | undefined)?.trim();
     return {
       role: typeof role === "string" && VALID_ROLES.includes(role as Role) ? (role as Role) : "employee",
       name: fullName || email.split("@")[0],
+      avatarUrl: avatarUrl || null,
     };
   } catch {
-    return { role: "employee", name: email.split("@")[0] };
+    return { role: "employee", name: email.split("@")[0], avatarUrl: null };
   }
 }
 
@@ -42,6 +50,7 @@ const DEV_FALLBACK_USER: Session = {
   email: "dev@hpcons.com.vn",
   name: "Dev Owner",
   role: "owner",
+  avatarUrl: null,
 };
 
 /** Phiên hiện tại, hoặc null nếu chưa đăng nhập. Không tự chuyển hướng. */
@@ -55,8 +64,8 @@ export async function getSession(): Promise<Session | null> {
     return null;
   }
 
-  const { role, name } = await fetchProfile(identity.uid, identity.email);
-  return { uid: identity.uid, email: identity.email, name, role };
+  const { role, name, avatarUrl } = await fetchProfile(identity.uid, identity.email);
+  return { uid: identity.uid, email: identity.email, name, role, avatarUrl };
 }
 
 export class AuthError extends Error {}
