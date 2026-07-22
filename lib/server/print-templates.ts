@@ -27,6 +27,34 @@ export async function getDefaultPrintTemplate(groupId: string): Promise<PrintTem
   return { id: doc.id, ...doc.data() } as PrintTemplate;
 }
 
+/**
+ * Cập nhật lại kết quả quét biến (detectedVariables/validation) mà KHÔNG
+ * đổi file — dùng khi Sếp bấm "Quét lại" sau khi sửa/xoá field của nhóm, vì
+ * việc đổi kiểu dữ liệu hoặc xoá field không tự động quét lại mẫu in đang
+ * dùng biến đó (mẫu in có thể in ra thiếu dữ liệu mà không có cảnh báo).
+ * Tự BỎ mặc định nếu quét lại phát sinh lỗi nghiêm trọng, giống replace file.
+ */
+export async function updatePrintTemplateValidation(
+  groupId: string,
+  templateId: string,
+  input: { detectedVariables: string[]; validation: { errors: string[]; warnings: string[] } },
+): Promise<PrintTemplate> {
+  const ref = templatesRef(groupId).doc(templateId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new Error("Không tìm thấy mẫu in.");
+  const current = snap.data() as Omit<PrintTemplate, "id">;
+
+  const hasErrors = input.validation.errors.length > 0;
+  const patch = {
+    detectedVariables: input.detectedVariables,
+    validation: input.validation,
+    updatedAt: new Date().toISOString(),
+    ...(hasErrors && current.isDefault ? { isDefault: false } : {}),
+  };
+  await ref.update(patch);
+  return { id: templateId, ...current, ...patch };
+}
+
 export interface CreatePrintTemplateInput {
   name: string;
   fileName: string;
@@ -112,11 +140,6 @@ export async function replacePrintTemplateFile(
   if (!snap.exists) throw new Error("Không tìm thấy mẫu in.");
   const current = snap.data() as Omit<PrintTemplate, "id">;
 
-  await getAttachmentsBucket()
-    .file(current.path)
-    .delete()
-    .catch(() => {});
-
   const hasErrors = input.validation.errors.length > 0;
   const patch = {
     fileName: input.fileName,
@@ -127,7 +150,14 @@ export async function replacePrintTemplateFile(
     updatedAt: new Date().toISOString(),
     ...(hasErrors && current.isDefault ? { isDefault: false } : {}),
   };
+  // Cập nhật Firestore TRƯỚC (đã trỏ sang file mới ở input.path — được lưu
+  // vào Storage trước khi hàm này chạy), rồi mới xoá file CŨ — tránh cửa sổ
+  // hở khi 1 request khác đang xuất file đọc path cũ nhưng file đã bị xoá.
   await ref.update(patch);
+  await getAttachmentsBucket()
+    .file(current.path)
+    .delete()
+    .catch(() => {});
   return { id: templateId, ...current, ...patch };
 }
 
@@ -138,11 +168,13 @@ export async function deletePrintTemplate(groupId: string, templateId: string): 
   if (!snap.exists) return;
   const data = snap.data() as Omit<PrintTemplate, "id">;
 
+  // Xoá Firestore TRƯỚC để request khác lập tức thấy mẫu đã biến mất (404)
+  // thay vì còn đọc được metadata trỏ tới file sắp bị xoá ở Storage.
+  await ref.delete();
   await getAttachmentsBucket()
     .file(data.path)
     .delete()
     .catch(() => {});
-  await ref.delete();
 
   if (data.isDefault) {
     const remaining = await templatesRef(groupId).orderBy("createdAt").limit(1).get();

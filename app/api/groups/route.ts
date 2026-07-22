@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { apiErrorResponse } from "@/lib/http";
-import { ensureCategoryExists, ensureFieldCodes } from "@/lib/server/groups";
+import {
+  ensureApproverStepCodes,
+  ensureCategoryExists,
+  ensureFieldCodes,
+  sanitizeDescriptionHtml,
+} from "@/lib/server/groups";
 import { requireSession, requireWriteAccess } from "@/lib/session";
 import type { CategoryGroup, ProposalGroup } from "@/lib/types";
 
@@ -17,11 +22,16 @@ export async function GET() {
     const groups = await Promise.all(
       groupsSnap.docs.map(async (doc) => {
         const group = { id: doc.id, ...doc.data() } as ProposalGroup;
-        const { fields, changed } = ensureFieldCodes(group.fields);
-        if (changed) {
-          await doc.ref.update({ fields });
-          group.fields = fields;
+        const { fields, changed: fieldsChanged } = ensureFieldCodes(group.fields);
+        const { steps, changed: stepsChanged } = ensureApproverStepCodes(group.approverSteps ?? []);
+        const update: Partial<ProposalGroup> = {};
+        if (fieldsChanged) update.fields = fields;
+        if (stepsChanged) update.approverSteps = steps;
+        if (Object.keys(update).length > 0) {
+          await doc.ref.update(update);
         }
+        group.fields = fields;
+        group.approverSteps = steps;
         return group;
       }),
     );
@@ -59,6 +69,8 @@ export async function POST(request: Request) {
     const newGroup: Omit<ProposalGroup, "id"> = {
       ...body,
       category: categoryName,
+      descriptionHtml:
+        body.descriptionHtml !== undefined ? sanitizeDescriptionHtml(body.descriptionHtml) : undefined,
       fields: [],
       pinned: false,
       createdAt: new Date().toISOString().slice(0, 10),

@@ -218,7 +218,7 @@ export default function CreateGroupModal() {
             </FieldRow>
 
             <FieldRow label="Sử dụng cho" description="Để trống nghĩa là toàn công ty được tạo.">
-              <TagUserInput value={usedFor} onChange={setUsedFor} placeholder="Gõ @ để tìm nhóm/người dùng" />
+              <TagUserInput value={usedFor} onChange={setUsedFor} placeholder="Gõ @ để tìm người dùng" />
             </FieldRow>
 
             <FieldRow label="Người theo dõi" description="Nhận cập nhật mặc định của mọi đề xuất trong nhóm.">

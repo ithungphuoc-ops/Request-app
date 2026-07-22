@@ -4,6 +4,7 @@ import {
   canApproverAct,
   forwardApprover,
   getRequestStatus,
+  missingRequiredNote,
 } from "@/lib/approval-logic";
 import { adminDb } from "@/lib/firebase/admin";
 import { apiErrorResponse } from "@/lib/http";
@@ -42,11 +43,24 @@ export async function POST(
     const current = { id: snap.id, ...snap.data() } as RequestInstance;
     const nowIso = new Date().toISOString();
 
-    if ((body.decision === "rejected" || body.decision === "returned") && !body.note?.trim()) {
-      return NextResponse.json(
-        { error: "Cần nhập lý do khi từ chối hoặc trả lại đề xuất." },
-        { status: 400 },
-      );
+    // Nhóm có thể bắt buộc thêm ghi chú cho "Chấp thuận"/"Chuyển tiếp" (mặc
+    // định KHÔNG bắt buộc, giữ đúng hành vi hiện có) — "rejected"/"returned"
+    // LUÔN bắt buộc sẵn, không phụ thuộc cấu hình nhóm (xem missingRequiredNote).
+    // "approveAndForward" của Base.vn chưa có hành động tương ứng trong app
+    // này nên chưa có gì để chặn.
+    let requireDecisionNote: { approve?: boolean; forward?: boolean } | undefined;
+    if (current.groupId && (body.decision === "approved" || body.decision === "forwarded")) {
+      const groupSnap = await adminDb.collection("groups").doc(current.groupId).get();
+      requireDecisionNote = (
+        groupSnap.data() as { requireDecisionNote?: { approve?: boolean; forward?: boolean } } | undefined
+      )?.requireDecisionNote;
+    }
+    if (missingRequiredNote(body.decision, body.note, requireDecisionNote)) {
+      const message =
+        body.decision === "rejected" || body.decision === "returned"
+          ? "Cần nhập lý do khi từ chối hoặc trả lại đề xuất."
+          : `Nhóm này yêu cầu nhập ý kiến khi ${body.decision === "approved" ? "chấp thuận" : "chuyển tiếp"}.`;
+      return NextResponse.json({ error: message }, { status: 400 });
     }
 
     if (body.decision === "returned") {

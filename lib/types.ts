@@ -83,19 +83,44 @@ export const fieldDataTypeLabels: Record<FieldDataType, string> = {
 };
 
 /**
+ * Điều kiện đơn giản dựa trên giá trị 1 field của đề xuất — dùng chung cho
+ * bước duyệt có điều kiện (ApproverStepDef.condition) và người theo dõi theo
+ * điều kiện (ProposalGroup.followersConditional). "equals"/"not_equals" dùng
+ * cho field kiểu single_choice/department_select; "includes" dùng cho
+ * multiple_choice (value nằm trong mảng đã chọn). Xem design.md của change
+ * add-base-vn-group-settings-parity — chỉ hỗ trợ 1 field/1 điều kiện, chưa
+ * có AND/OR vì chưa có bằng chứng Base.vn thật cần điều đó.
+ */
+export interface ConditionRule {
+  /** Tham chiếu ProposalField.code trong CÙNG nhóm, không phải field.id. */
+  fieldCode: string;
+  operator: "equals" | "not_equals" | "includes";
+  value: string;
+}
+
+/**
  * Định nghĩa 1 bước duyệt của nhóm — "fixed" là một người cố định (giống
  * nhau cho mọi đề xuất); "submitter_manager" là quản lý trực tiếp/trưởng
  * đơn vị của CHÍNH NGƯỜI GỬI, được tra cứu lại (department.leaderId) tại
  * thời điểm gửi từng đề xuất — khác nhau tuỳ người gửi.
+ *
+ * `code` là mã ổn định sinh 1 lần lúc tạo (cùng cơ chế slugifyFieldName của
+ * field), backfill ngầm cho bước duyệt cũ khi đọc qua API — xem
+ * lib/server/groups.ts. `condition`: nếu có, bước duyệt CHỈ được đưa vào
+ * danh sách người duyệt thực tế khi điều kiện thoả mãn tại thời điểm gửi.
  */
 export type ApproverStepDef =
-  | { kind: "fixed"; user: TaggedUser }
-  | { kind: "submitter_manager" };
+  | { kind: "fixed"; user: TaggedUser; code?: string; condition?: ConditionRule }
+  | { kind: "submitter_manager"; code?: string; condition?: ConditionRule };
 
 export interface ProposalGroup {
   id: string;
   name: string;
   description: string;
+  /** Mô tả nhóm dạng rich text (HTML đã sanitize phía server) — description
+   * ở trên giữ nguyên làm bản plain-text rút gọn cho nơi hiển thị ngắn (vd
+   * danh sách nhóm), không phải nơi nào cũng cần sửa sang đọc field mới này. */
+  descriptionHtml?: string;
   category: string;
   status: "active" | "closed";
   approvalFlow: ApprovalFlowType;
@@ -104,6 +129,9 @@ export interface ProposalGroup {
   usedFor: TaggedUser[];
   approverSteps: ApproverStepDef[];
   followers: TaggedUser[];
+  /** Danh sách người theo dõi CHỈ được thêm khi điều kiện tương ứng thoả mãn
+   * lúc gửi chính thức — hợp cùng `followers` (cố định) + người gửi tự thêm. */
+  followersConditional?: { condition: ConditionRule; users: TaggedUser[] }[];
   fields: ProposalField[];
   pinned: boolean;
   createdAt: string;
@@ -111,6 +139,26 @@ export interface ProposalGroup {
   printFooterNote?: string;
   /** Chặn "In theo mẫu" nếu đề xuất chưa ở trạng thái approved — mặc định false. */
   printRequireFullyApproved?: boolean;
+  /** Người tạo có bắt buộc điền field tuỳ chỉnh của nhóm khi gửi hay có thể bỏ
+   * qua (chỉ điền thông tin hệ thống) — mặc định true (bắt buộc), giữ đúng
+   * hành vi hiện tại khi field này chưa được đặt. */
+  requiresSubmissionForm?: boolean;
+  /** Bật SLA riêng cho từng bước duyệt (độc lập SLA chung slaHours) — chưa áp
+   * dụng logic tính hạn riêng trong change này, chỉ lưu cấu hình. */
+  approverSlaEnabled?: boolean;
+  /** Tính SLA theo lịch làm việc (bỏ giờ ngoài hành chính/ngày nghỉ) thay vì
+   * giờ đồng hồ liên tục — chưa áp dụng logic tính trong change này. */
+  slaByWorkCalendar?: boolean;
+  /** Bắt buộc người duyệt nhập ghi chú khi thực hiện hành động tương ứng. */
+  requireDecisionNote?: {
+    approve?: boolean;
+    reject?: boolean;
+    forward?: boolean;
+    approveAndForward?: boolean;
+  };
+  /** Bật mã đề xuất tự sinh riêng theo nhóm (transaction riêng), thay vì luôn
+   * dùng bộ đếm toàn hệ thống — mặc định false/chưa đặt = dùng bộ đếm chung. */
+  useOwnCounter?: boolean;
 }
 
 /**

@@ -3,7 +3,7 @@ import { adminDb, getAttachmentsBucket } from "@/lib/firebase/admin";
 import { apiErrorResponse } from "@/lib/http";
 import { scanTemplateVariables } from "@/lib/server/print-engine";
 import { createPrintTemplate, listPrintTemplates } from "@/lib/server/print-templates";
-import { requireWriteAccess } from "@/lib/session";
+import { requireSession, requireWriteAccess } from "@/lib/session";
 import type { ProposalGroup } from "@/lib/types";
 
 // Cần Node runtime (không phải Edge) để dùng firebase-admin/storage.
@@ -18,6 +18,7 @@ function sanitizeFileName(name: string): string {
 /** Danh sách mẫu in của 1 nhóm — dùng cho trang cài đặt VÀ hộp thoại "In theo mẫu". */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    await requireSession();
     const { id } = await params;
     const templates = await listPrintTemplates(id);
     return NextResponse.json({ templates });

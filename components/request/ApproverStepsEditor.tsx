@@ -2,19 +2,27 @@
 
 import { Plus, Trash2, Users } from "lucide-react";
 import TagUserInput from "@/components/shared/TagUserInput";
-import { selectClass } from "@/components/shared/form-styles";
-import type { ApproverStepDef, TaggedUser } from "@/lib/types";
+import { inputClass, selectClass } from "@/components/shared/form-styles";
+import type { ApproverStepDef, ConditionRule, ProposalField, TaggedUser } from "@/lib/types";
 
 /**
  * Trạng thái đang soạn của 1 bước duyệt — khác `ApproverStepDef` ở chỗ bước
  * "fixed" có thể tạm chưa chọn người (user: null) trong lúc đang sửa form.
  * Dùng `toApproverSteps()` để xác thực + chuyển sang `ApproverStepDef[]`
- * thật trước khi gửi lên API.
+ * thật trước khi gửi lên API. `code` giữ nguyên nếu bước đã có (không cho
+ * sửa tay trong bản này — chỉ hiển thị), mất đi (undefined) nếu là bước mới
+ * thêm — server sẽ tự backfill khi lưu.
  */
-export type DraftApproverStep = { kind: "fixed"; user: TaggedUser | null } | { kind: "submitter_manager" };
+export type DraftApproverStep =
+  | { kind: "fixed"; user: TaggedUser | null; code?: string; condition?: ConditionRule }
+  | { kind: "submitter_manager"; code?: string; condition?: ConditionRule };
 
 export function fromApproverSteps(steps: ApproverStepDef[]): DraftApproverStep[] {
-  return steps.map((s) => (s.kind === "fixed" ? { kind: "fixed", user: s.user } : s));
+  return steps.map((s) =>
+    s.kind === "fixed"
+      ? { kind: "fixed", user: s.user, code: s.code, condition: s.condition }
+      : { kind: "submitter_manager", code: s.code, condition: s.condition },
+  );
 }
 
 /** null nếu còn bước "Người cố định" chưa chọn ai — chặn submit ở nơi gọi. */
@@ -25,11 +33,15 @@ export function toApproverSteps(steps: DraftApproverStep[]): ApproverStepDef[] |
       result.push(step);
     } else {
       if (!step.user) return null;
-      result.push({ kind: "fixed", user: step.user });
+      result.push({ kind: "fixed", user: step.user, code: step.code, condition: step.condition });
     }
   }
   return result;
 }
+
+/** Chỉ field có tập giá trị rời rạc mới dùng làm điều kiện được (so sánh
+ * bằng/khác/chứa có ý nghĩa) — field tự do (text/số/ngày) không phù hợp. */
+const CONDITION_ELIGIBLE_TYPES = new Set(["single_choice", "multiple_choice", "department_select"]);
 
 /**
  * Danh sách bước duyệt của 1 nhóm — mỗi bước là "Cố định" (một người cụ thể,
@@ -40,10 +52,16 @@ export function toApproverSteps(steps: DraftApproverStep[]): ApproverStepDef[] |
 export default function ApproverStepsEditor({
   value,
   onChange,
+  fields = [],
 }: {
   value: DraftApproverStep[];
   onChange: (steps: DraftApproverStep[]) => void;
+  /** Field của nhóm dùng để chọn điều kiện — nhóm mới tạo chưa có field nào
+   * thì truyền [] hoặc bỏ trống, phần "có điều kiện" tự ẩn UI chọn field. */
+  fields?: ProposalField[];
 }) {
+  const conditionFields = fields.filter((f) => f.code && CONDITION_ELIGIBLE_TYPES.has(f.dataType));
+
   const addStep = () => {
     onChange([...value, { kind: "fixed", user: null }]);
   };
@@ -57,15 +75,23 @@ export default function ApproverStepsEditor({
       value.map((step, i) =>
         i === index
           ? kind === "submitter_manager"
-            ? { kind: "submitter_manager" as const }
-            : { kind: "fixed" as const, user: null }
+            ? { kind: "submitter_manager" as const, code: step.code, condition: step.condition }
+            : { kind: "fixed" as const, user: null, code: step.code, condition: step.condition }
           : step,
       ),
     );
   };
 
   const setFixedUser = (index: number, user: TaggedUser | undefined) => {
-    onChange(value.map((step, i) => (i === index ? { kind: "fixed" as const, user: user ?? null } : step)));
+    onChange(
+      value.map((step, i) =>
+        i === index ? { ...step, kind: "fixed" as const, user: user ?? null } : step,
+      ),
+    );
+  };
+
+  const setCondition = (index: number, condition: ConditionRule | undefined) => {
+    onChange(value.map((step, i) => (i === index ? { ...step, condition } : step)));
   };
 
   return (
@@ -100,6 +126,20 @@ export default function ApproverStepsEditor({
                 Tự động: trưởng đơn vị của người gửi (tra tại thời điểm gửi đề xuất).
               </p>
             )}
+
+            {(step.code || step.condition) && (
+              <p className="text-[11px] text-gray-400">
+                {step.code && <>Mã: {step.code}</>}
+                {step.code && step.condition && " · "}
+                {step.condition && "1 điều kiện"}
+              </p>
+            )}
+
+            <ConditionEditor
+              condition={step.condition}
+              fields={conditionFields}
+              onChange={(c) => setCondition(index, c)}
+            />
           </div>
           <button
             type="button"
@@ -119,6 +159,74 @@ export default function ApproverStepsEditor({
       >
         <Plus size={14} /> Thêm bước duyệt
       </button>
+    </div>
+  );
+}
+
+/** UI bật/tắt + cấu hình "điều kiện áp dụng" cho 1 bước duyệt (hoặc 1 mục
+ * người theo dõi theo điều kiện — dùng lại nguyên component này). */
+export function ConditionEditor({
+  condition,
+  fields,
+  onChange,
+}: {
+  condition: ConditionRule | undefined;
+  fields: ProposalField[];
+  onChange: (condition: ConditionRule | undefined) => void;
+}) {
+  const enabled = condition !== undefined;
+
+  const enable = () => {
+    const first = fields[0];
+    if (!first?.code) return;
+    onChange({ fieldCode: first.code, operator: "equals", value: "" });
+  };
+
+  if (fields.length === 0) {
+    return (
+      <p className="text-[11px] text-gray-400">
+        Nhóm chưa có trường kiểu &quot;một/nhiều lựa chọn&quot; nào để đặt điều kiện.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="flex items-center gap-1.5 text-[12px] text-gray-600">
+        <input type="checkbox" checked={enabled} onChange={(e) => (e.target.checked ? enable() : onChange(undefined))} />
+        Chỉ áp dụng khi thoả điều kiện
+      </label>
+
+      {enabled && condition && (
+        <div className="flex flex-wrap items-center gap-1.5 pl-5">
+          <select
+            className={selectClass}
+            value={condition.fieldCode}
+            onChange={(e) => onChange({ ...condition, fieldCode: e.target.value })}
+          >
+            {fields.map((f) => (
+              <option key={f.code} value={f.code}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+          <select
+            className={selectClass}
+            value={condition.operator}
+            onChange={(e) => onChange({ ...condition, operator: e.target.value as ConditionRule["operator"] })}
+          >
+            <option value="equals">bằng</option>
+            <option value="not_equals">khác</option>
+            <option value="includes">chứa</option>
+          </select>
+          <input
+            className={inputClass}
+            value={condition.value}
+            placeholder="Giá trị"
+            onChange={(e) => onChange({ ...condition, value: e.target.value })}
+          />
+        </div>
+      )}
     </div>
   );
 }

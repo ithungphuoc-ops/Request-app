@@ -1,8 +1,11 @@
 import "server-only";
 import type { ApproverState } from "@/lib/approval-logic";
+import { addBusinessHours } from "@/lib/business-hours";
 import { adminDb } from "@/lib/firebase/admin";
+import { filterApplicableSteps } from "@/lib/server/conditions";
 import { getHpcoreDb } from "@/lib/hpcore";
 import { canManageGroupsAtAppScope, type Role } from "@/lib/permissions";
+import { nextCounterCode } from "@/lib/validation";
 import type {
   ApproverStepDef,
   ProposalField,
@@ -52,9 +55,19 @@ export function buildInitialApprovers(approvers: TaggedUser[]): ApproverState[] 
   return approvers.map((a) => ({ id: a.id, decision: "pending" as const }));
 }
 
-/** Hạn xử lý = thời điểm gửi + slaHours giờ; null nếu nhóm không đặt SLA. */
-export function computeDeadline(slaHours: number | null, from: Date): string | null {
+/**
+ * Hạn xử lý = thời điểm gửi + slaHours giờ; null nếu nhóm không đặt SLA.
+ * `useBusinessHours` (từ ProposalGroup.slaByWorkCalendar) bật thì cộng dồn
+ * SLA CHỈ trong giờ hành chính (lib/business-hours.ts), tắt thì cộng giờ
+ * đồng hồ liên tục như cũ.
+ */
+export function computeDeadline(
+  slaHours: number | null,
+  from: Date,
+  useBusinessHours = false,
+): string | null {
   if (slaHours === null || slaHours === undefined) return null;
+  if (useBusinessHours) return addBusinessHours(from, slaHours).toISOString();
   return new Date(from.getTime() + slaHours * 60 * 60 * 1000).toISOString();
 }
 
@@ -76,13 +89,28 @@ export function toProposalGroup(id: string, data: Record<string, unknown>): Prop
  */
 export async function generateRequestCode(): Promise<string> {
   const counterRef = adminDb.collection("counters").doc("requestCode");
-  const next = await adminDb.runTransaction(async (tx) => {
+  return adminDb.runTransaction(async (tx) => {
     const snap = await tx.get(counterRef);
-    const current = (snap.data()?.next as number | undefined) ?? 1;
-    tx.set(counterRef, { next: current + 1 }, { merge: true });
-    return current;
+    const { next, code } = nextCounterCode(snap.data()?.next as number | undefined);
+    tx.set(counterRef, { next }, { merge: true });
+    return code;
   });
-  return String(next).padStart(6, "0");
+}
+
+/**
+ * Mã đề xuất RIÊNG cho 1 nhóm đã bật `useOwnCounter` — transaction TRÊN
+ * document đếm riêng (`counters/group_{groupId}`, tách biệt hoàn toàn khỏi
+ * `counters/requestCode` dùng chung) nên không ảnh hưởng số thứ tự của nhóm
+ * khác hay bộ đếm toàn hệ thống. Cùng định dạng 6 chữ số với generateRequestCode().
+ */
+export async function generateGroupRequestCode(groupId: string): Promise<string> {
+  const counterRef = adminDb.collection("counters").doc(`group_${groupId}`);
+  return adminDb.runTransaction(async (tx) => {
+    const snap = await tx.get(counterRef);
+    const { next, code } = nextCounterCode(snap.data()?.next as number | undefined);
+    tx.set(counterRef, { next }, { merge: true });
+    return code;
+  });
 }
 
 /** Ném khi không xác định được người duyệt bước "quản lý phòng ban người gửi". */
@@ -133,14 +161,26 @@ async function resolveSubmitterManager(submitterUid: string): Promise<TaggedUser
  * Phân giải danh sách bước duyệt của nhóm thành danh sách người duyệt cụ thể
  * tại thời điểm gửi đề xuất — "fixed" giữ nguyên, "submitter_manager" tra
  * cứu lại theo phòng ban của người gửi (kết quả SNAPSHOT vào đề xuất, không
- * tự đổi nếu trưởng đơn vị đổi sau này).
+ * tự đổi nếu trưởng đơn vị đổi sau này). Bước duyệt có `condition` bị BỎ QUA
+ * nếu điều kiện không thoả mãn với `values`/`fields` của đề xuất đang gửi —
+ * nếu sau khi lọc không còn bước duyệt nào, ném MissingApproverError thay vì
+ * tạo đề xuất không có người duyệt.
  */
 export async function resolveApproverSteps(
   steps: ApproverStepDef[] | undefined,
   submitterUid: string,
+  values: Record<string, unknown> = {},
+  fields: ProposalField[] = [],
 ): Promise<TaggedUser[]> {
+  const applicableSteps = filterApplicableSteps(steps ?? [], values, fields);
+  if ((steps ?? []).length > 0 && applicableSteps.length === 0) {
+    throw new MissingApproverError(
+      "Không xác định được người duyệt nào phù hợp điều kiện hiện tại của đề xuất này. Liên hệ admin để kiểm tra lại cấu hình người duyệt của nhóm.",
+    );
+  }
+
   const resolved: TaggedUser[] = [];
-  for (const step of steps ?? []) {
+  for (const step of applicableSteps) {
     resolved.push(step.kind === "fixed" ? step.user : await resolveSubmitterManager(submitterUid));
   }
   return resolved;

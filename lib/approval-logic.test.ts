@@ -3,10 +3,13 @@ import {
   ApprovalActionError,
   applyApproverDecision,
   canApproverAct,
+  dedupeApprovers,
   forwardApprover,
   getRequestStatus,
+  missingRequiredNote,
   type ApproverState,
 } from "./approval-logic";
+import type { TaggedUser } from "./types";
 
 function approvers(...ids: string[]): ApproverState[] {
   return ids.map((id) => ({ id, decision: "pending" as const }));
@@ -145,5 +148,65 @@ describe("Chuyển tiếp (forwardApprover)", () => {
     const result = forwardApprover("single", list, "a", "z");
     const afterApprove = applyApproverDecision("single", result, "z", "approved");
     expect(getRequestStatus("single", afterApprove)).toBe("approved");
+  });
+});
+
+describe("missingRequiredNote", () => {
+  it("rejected luôn bắt buộc ghi chú, không phụ thuộc cấu hình nhóm", () => {
+    expect(missingRequiredNote("rejected", undefined, undefined)).toBe(true);
+    expect(missingRequiredNote("rejected", "  ", undefined)).toBe(true);
+    expect(missingRequiredNote("rejected", "Lý do", undefined)).toBe(false);
+  });
+
+  it("returned luôn bắt buộc ghi chú, không phụ thuộc cấu hình nhóm", () => {
+    expect(missingRequiredNote("returned", undefined, { approve: true })).toBe(true);
+    expect(missingRequiredNote("returned", "Lý do", undefined)).toBe(false);
+  });
+
+  it("approved không bắt buộc khi nhóm chưa bật cờ", () => {
+    expect(missingRequiredNote("approved", undefined, undefined)).toBe(false);
+    expect(missingRequiredNote("approved", undefined, { approve: false })).toBe(false);
+  });
+
+  it("approved bắt buộc khi nhóm bật cờ approve", () => {
+    expect(missingRequiredNote("approved", undefined, { approve: true })).toBe(true);
+    expect(missingRequiredNote("approved", "Ok", { approve: true })).toBe(false);
+  });
+
+  it("forwarded không bắt buộc khi nhóm chưa bật cờ", () => {
+    expect(missingRequiredNote("forwarded", undefined, undefined)).toBe(false);
+  });
+
+  it("forwarded bắt buộc khi nhóm bật cờ forward", () => {
+    expect(missingRequiredNote("forwarded", undefined, { forward: true })).toBe(true);
+    expect(missingRequiredNote("forwarded", "Chuyển", { forward: true })).toBe(false);
+  });
+});
+
+function user(id: string): TaggedUser {
+  return { id, name: id, username: id, avatarInitial: id[0] };
+}
+
+describe("dedupeApprovers", () => {
+  it("giữ nguyên khi không ai trùng", () => {
+    const list = [user("a"), user("b"), user("c")];
+    expect(dedupeApprovers(list)).toEqual(list);
+  });
+
+  it("người trùng 2 bước chỉ giữ 1 lần, ở vị trí lần xuất hiện sau cùng", () => {
+    const [a, b] = [user("a"), user("b")];
+    const result = dedupeApprovers([a, b, a]);
+    expect(result).toEqual([b, a]);
+  });
+
+  it("trùng nhiều id khác nhau xen kẽ vẫn đúng thứ tự theo lần cuối", () => {
+    const [a, b, c] = [user("a"), user("b"), user("c")];
+    // a(0) b(1) c(2) a(3) b(4) -> giữ c(2), a(3), b(4) theo đúng thứ tự đó
+    const result = dedupeApprovers([a, b, c, a, b]);
+    expect(result.map((u) => u.id)).toEqual(["c", "a", "b"]);
+  });
+
+  it("danh sách rỗng trả về rỗng", () => {
+    expect(dedupeApprovers([])).toEqual([]);
   });
 });

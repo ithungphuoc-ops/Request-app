@@ -1,4 +1,4 @@
-import type { ApprovalFlowType } from "./types";
+import type { ApprovalFlowType, TaggedUser } from "./types";
 
 export type ApproverDecision = "pending" | "approved" | "rejected";
 
@@ -50,7 +50,40 @@ export function getRequestStatus(
   return "pending";
 }
 
+/**
+ * Loại người trùng khi cùng 1 người được nhiều bước duyệt cùng chọn (vd vừa
+ * là "Quản lý trực tiếp" vừa là "Trưởng phòng") — chỉ giữ 1 lần, ở VỊ TRÍ
+ * CỦA LẦN XUẤT HIỆN SAU CÙNG (đúng tuỳ chọn "Ưu tiên vai trò của khối xuất
+ * hiện sau cùng nhất" của Base.vn) để thứ tự duyệt "Lần lượt" phản ánh đúng
+ * bước sau cùng thay vì bước đầu tiên trùng người. Áp dụng TRƯỚC khi build
+ * approversSnapshot/approvers ban đầu — không đổi shape ApproverState.
+ */
+export function dedupeApprovers(users: TaggedUser[]): TaggedUser[] {
+  const lastIndexById = new Map<string, number>();
+  users.forEach((u, i) => lastIndexById.set(u.id, i));
+  return users.filter((u, i) => lastIndexById.get(u.id) === i);
+}
+
 export class ApprovalActionError extends Error {}
+
+/**
+ * Xác định 1 hành động duyệt có đang THIẾU ghi chú bắt buộc hay không —
+ * "rejected"/"returned" LUÔN bắt buộc (không phụ thuộc cấu hình nhóm, giữ
+ * đúng hành vi cũ); "approved"/"forwarded" chỉ bắt buộc khi nhóm bật cờ
+ * tương ứng trong `requireDecisionNote`. Trả về true = còn thiếu (chặn),
+ * false = đủ điều kiện tiếp tục.
+ */
+export function missingRequiredNote(
+  decision: "approved" | "rejected" | "forwarded" | "returned",
+  note: string | undefined,
+  requireDecisionNote: { approve?: boolean; forward?: boolean } | undefined,
+): boolean {
+  const hasNote = Boolean(note?.trim());
+  if (decision === "rejected" || decision === "returned") return !hasNote;
+  if (decision === "approved") return Boolean(requireDecisionNote?.approve) && !hasNote;
+  if (decision === "forwarded") return Boolean(requireDecisionNote?.forward) && !hasNote;
+  return false;
+}
 
 /**
  * Chuyển tiếp quyền xử lý của một người duyệt sang người khác, giữ nguyên vị

@@ -1,6 +1,12 @@
 import { COMPANY_NAME } from "@/lib/constants";
 import { deserializeTableRows } from "@/lib/table-field";
-import type { ProposalField, RequestInstance, RequestStatus, TaggedUser } from "@/lib/types";
+import type {
+  ApproverStepDef,
+  ProposalField,
+  RequestInstance,
+  RequestStatus,
+  TaggedUser,
+} from "@/lib/types";
 
 const MAX_APPROVAL_SLOTS = 20;
 
@@ -50,6 +56,38 @@ export function ensureFieldCodes(fields: ProposalField[]): {
     return { ...f, code: candidate };
   });
   return { fields: next, changed };
+}
+
+/**
+ * Sinh `code` ổn định cho các bước duyệt CHƯA có, cùng cơ chế với
+ * `ensureFieldCodes` ở trên (dùng chung `slugifyFieldName`, backfill 1 lần,
+ * không đổi lại nếu đã có). "submitter_manager" luôn dùng gốc cố định
+ * "quan_ly_truc_tiep" (không có tên riêng để slug); "fixed" slug từ tên
+ * người được chỉ định.
+ */
+export function ensureApproverStepCodes(steps: ApproverStepDef[]): {
+  steps: ApproverStepDef[];
+  changed: boolean;
+} {
+  const used = new Set(steps.filter((s) => s.code).map((s) => s.code as string));
+  let changed = false;
+  const next = steps.map((s) => {
+    if (s.code) return s;
+    changed = true;
+    const base =
+      s.kind === "submitter_manager"
+        ? "quan_ly_truc_tiep"
+        : slugifyFieldName(s.user.name) || "nguoi_duyet";
+    let candidate = base;
+    let suffix = 2;
+    while (used.has(candidate)) {
+      candidate = `${base}_${suffix}`;
+      suffix += 1;
+    }
+    used.add(candidate);
+    return { ...s, code: candidate };
+  });
+  return { steps: next, changed };
 }
 
 /** Vài mã trường phổ biến cho "tiêu đề" của 1 đề xuất — dùng cho thẻ ${name}. */

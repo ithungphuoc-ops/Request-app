@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { AlertTriangle, CheckCircle2, Download, FileText, Pencil, Plus, Star, Trash2, Upload } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, FileText, Pencil, Plus, RefreshCw, Star, Trash2, Upload } from "lucide-react";
 import RequireAdminRole from "@/components/request/RequireAdminRole";
 import { useRequestContext } from "@/context/RequestContext";
 import { cancelButtonClass, confirmButtonClass, inputClass, selectClass, textareaClass } from "@/components/shared/form-styles";
@@ -153,6 +153,23 @@ function PrintSettingsPageInner() {
         body: JSON.stringify({ setDefault: true }),
       });
       if (!res.ok) throw new Error("Không thể đặt làm mặc định.");
+      refetchTemplates();
+    } catch (err) {
+      setTemplateError(err instanceof Error ? err.message : "Có lỗi xảy ra.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const rescanTemplate = async (templateId: string) => {
+    setBusyId(templateId);
+    try {
+      const res = await fetch(`/api/groups/${group.id}/print-templates/${templateId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rescan: true }),
+      });
+      if (!res.ok) throw new Error("Không thể quét lại mẫu in.");
       refetchTemplates();
     } catch (err) {
       setTemplateError(err instanceof Error ? err.message : "Có lỗi xảy ra.");
@@ -326,6 +343,15 @@ function PrintSettingsPageInner() {
                           className="rounded p-1.5 text-gray-400 hover:text-[var(--color-action-blue)] disabled:opacity-60"
                         >
                           <Upload size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => rescanTemplate(t.id)}
+                          disabled={busyId === t.id}
+                          title="Quét lại (sau khi sửa/xoá trường dữ liệu của nhóm)"
+                          className="rounded p-1.5 text-gray-400 hover:text-[var(--color-action-blue)] disabled:opacity-60"
+                        >
+                          <RefreshCw size={14} />
                         </button>
                         <button
                           type="button"

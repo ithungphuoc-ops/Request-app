@@ -4,9 +4,11 @@ import { apiErrorResponse } from "@/lib/http";
 import { slugifyFieldName } from "@/lib/print-template";
 import {
   diffGroupPatch,
+  ensureApproverStepCodes,
   ensureCategoryExists,
   ensureFieldCodes,
   recordGroupHistory,
+  sanitizeDescriptionHtml,
 } from "@/lib/server/groups";
 import { requireWriteAccess } from "@/lib/session";
 import type { ProposalGroup } from "@/lib/types";
@@ -34,6 +36,9 @@ export async function PATCH(
       await ensureCategoryExists(patch.category.trim());
       patch.category = patch.category.trim();
     }
+    if (patch.descriptionHtml !== undefined) {
+      patch.descriptionHtml = sanitizeDescriptionHtml(patch.descriptionHtml);
+    }
     if (patch.fields) {
       // Chuẩn hoá mã trường người dùng tự gõ (sửa tay ở Giai đoạn "sửa mã trường") rồi
       // mới backfill mã còn thiếu — không tin client, luôn kiểm tra trùng ở server.
@@ -52,6 +57,21 @@ export async function PATCH(
         seen.add(f.code);
       }
       patch.fields = ensureFieldCodes(normalized).fields;
+    }
+    if (patch.approverSteps) {
+      const fieldsForValidation = patch.fields ?? before.fields;
+      const knownFieldCodes = new Set(fieldsForValidation.map((f) => f.code).filter(Boolean));
+      for (const step of patch.approverSteps) {
+        if (step.condition && !knownFieldCodes.has(step.condition.fieldCode)) {
+          return NextResponse.json(
+            {
+              error: `Điều kiện tham chiếu tới trường "${step.condition.fieldCode}" không tồn tại trong nhóm.`,
+            },
+            { status: 400 },
+          );
+        }
+      }
+      patch.approverSteps = ensureApproverStepCodes(patch.approverSteps).steps;
     }
 
     await ref.update({ ...patch });

@@ -8,6 +8,7 @@ import {
   renamePrintTemplate,
   replacePrintTemplateFile,
   setDefaultPrintTemplate,
+  updatePrintTemplateValidation,
 } from "@/lib/server/print-templates";
 import { requireWriteAccess } from "@/lib/session";
 import type { ProposalGroup } from "@/lib/types";
@@ -24,6 +25,10 @@ function sanitizeFileName(name: string): string {
 interface PatchBody {
   name?: string;
   setDefault?: boolean;
+  /** Quét lại biến/lỗi của file HIỆN CÓ theo field mới nhất của nhóm — dùng
+   * khi field bị đổi kiểu dữ liệu/xoá sau khi mẫu in đã dùng biến đó, vì
+   * việc đó không tự động quét lại (xem lib/server/print-templates.ts). */
+  rescan?: boolean;
 }
 
 /** Đổi tên mẫu và/hoặc đặt làm mặc định. */
@@ -43,6 +48,19 @@ export async function PATCH(
 
     if (typeof body.name === "string" && body.name.trim()) {
       await renamePrintTemplate(id, templateId, body.name.trim());
+    }
+    if (body.rescan) {
+      const groupSnap = await adminDb.collection("groups").doc(id).get();
+      if (!groupSnap.exists) {
+        return NextResponse.json({ error: "Không tìm thấy nhóm đề xuất." }, { status: 404 });
+      }
+      const group = { id: groupSnap.id, ...groupSnap.data() } as ProposalGroup;
+      const [buffer] = await getAttachmentsBucket().file(existing.path).download();
+      const scan = scanTemplateVariables(buffer, group);
+      await updatePrintTemplateValidation(id, templateId, {
+        detectedVariables: scan.detectedVariables,
+        validation: { errors: scan.errors, warnings: scan.warnings },
+      });
     }
     if (body.setDefault) {
       if (existing.validation.errors.length > 0) {

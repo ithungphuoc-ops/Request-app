@@ -128,9 +128,11 @@ export default function SubmitRequestPage() {
 
   const handleSubmit = async () => {
     const nextErrors: Record<string, string> = {};
-    for (const field of group.fields) {
-      if (field.required && isEmptyValue(values[field.id])) {
-        nextErrors[field.id] = "Trường này là bắt buộc.";
+    if (group.requiresSubmissionForm !== false) {
+      for (const field of group.fields) {
+        if (field.required && isEmptyValue(values[field.id])) {
+          nextErrors[field.id] = "Trường này là bắt buộc.";
+        }
       }
     }
     if (Object.keys(nextErrors).length > 0) {
@@ -169,10 +171,19 @@ export default function SubmitRequestPage() {
   return (
     <div className="mx-auto max-w-[960px] px-8 py-6">
       <h1 className="text-[22px] font-bold text-gray-900">Gửi đề xuất: {group.name}</h1>
-      {group.description && (
-        <div className="mt-3 whitespace-pre-line rounded-[6px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] leading-relaxed text-emerald-900">
-          {group.description}
-        </div>
+      {group.descriptionHtml ? (
+        // Nội dung đã được sanitize phía server (lib/validation.ts
+        // sanitizeDescriptionHtml) trước khi lưu — an toàn để render trực tiếp.
+        <div
+          className="prose prose-sm mt-3 max-w-none rounded-[6px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900"
+          dangerouslySetInnerHTML={{ __html: group.descriptionHtml }}
+        />
+      ) : (
+        group.description && (
+          <div className="mt-3 whitespace-pre-line rounded-[6px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] leading-relaxed text-emerald-900">
+            {group.description}
+          </div>
+        )
       )}
 
       <div className="mt-5 rounded-[6px] border border-[var(--color-border)] bg-white p-6 shadow-sm">

@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase/admin";
 import { apiErrorResponse } from "@/lib/http";
+import { dedupeApprovers } from "@/lib/approval-logic";
+import { mergeFollowers } from "@/lib/server/conditions";
 import { canManageGroupsAtAppScope } from "@/lib/permissions";
 import {
   buildInitialApprovers,
   canView,
   computeDeadline,
   findMissingRequiredFields,
+  generateGroupRequestCode,
   generateRequestCode,
   loadRequest,
   resolveApproverSteps,
@@ -107,7 +110,8 @@ export async function PATCH(
         );
       }
       const group = toProposalGroup(groupSnap.id, groupSnap.data()!);
-      const missing = findMissingRequiredFields(group.fields, values);
+      const missing =
+        group.requiresSubmissionForm === false ? [] : findMissingRequiredFields(group.fields, values);
       if (missing.length > 0) {
         return NextResponse.json(
           {
@@ -117,10 +121,18 @@ export async function PATCH(
           { status: 400 },
         );
       }
-      approversSnapshot = await resolveApproverSteps(group.approverSteps, session.uid);
-      const deadlineAt = computeDeadline(group.slaHours, new Date());
+      // dedupeApprovers: người trùng nhiều bước duyệt chỉ tính 1 lần theo
+      // vai trò xuất hiện sau cùng — xem lib/approval-logic.ts.
+      approversSnapshot = dedupeApprovers(
+        await resolveApproverSteps(group.approverSteps, session.uid, values, group.fields),
+      );
+      const deadlineAt = computeDeadline(group.slaHours, new Date(), group.slaByWorkCalendar === true);
       const nowIso = new Date().toISOString();
-      const code = found.code ?? (await generateRequestCode());
+      const code =
+        found.code ??
+        (group.useOwnCounter === true
+          ? await generateGroupRequestCode(group.id)
+          : await generateRequestCode());
       const ref = adminDb.collection("requests").doc(id);
       const patch = {
         code,
@@ -133,7 +145,9 @@ export async function PATCH(
         // Giữ đúng người theo dõi người gửi đã chỉnh (mặc định + thêm tay),
         // không ghi đè về danh sách mặc định của nhóm khi gửi chính thức từ
         // nháp — nhất quán với nhánh "chỉ lưu nháp" ở trên (dòng `followers`).
-        followers,
+        // Hợp nhất thêm người theo dõi theo điều kiện thoả mãn tại thời điểm
+        // gửi chính thức này (values đã đủ vì đã qua kiểm tra thiếu trường ở trên).
+        followers: mergeFollowers(group.followers, followers, group.followersConditional ?? [], values, group.fields),
         status: "pending" as const,
         deadlineAt,
         updatedAt: nowIso,

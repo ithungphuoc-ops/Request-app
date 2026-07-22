@@ -1,4 +1,36 @@
+import sanitizeHtml from "sanitize-html";
 import type { FieldDataType } from "./types";
+
+/**
+ * Làm sạch HTML mô tả nhóm (soạn bằng RichTextEditor/Tiptap) trước khi lưu —
+ * chỉ giữ đúng bộ thẻ toolbar hỗ trợ, chặn <script>/onerror=/javascript:...
+ * Không tin nội dung client gửi lên dù chỉ hiển thị lại cho người trong công ty.
+ */
+/**
+ * Phần tính toán THUẦN của mã đề xuất (6 chữ số tăng dần) — tách khỏi
+ * transaction Firestore thật (lib/server/requests.ts, "server-only" nên
+ * không test trực tiếp được) để test được logic định dạng/tăng số bằng
+ * vitest, theo đúng cách các hàm khác trong file này đã làm.
+ */
+export function nextCounterCode(current: number | undefined): { next: number; code: string } {
+  const value = current ?? 1;
+  return { next: value + 1, code: String(value).padStart(6, "0") };
+}
+
+export function sanitizeDescriptionHtml(html: string): string {
+  return sanitizeHtml(html, {
+    allowedTags: [
+      "p", "br", "b", "strong", "i", "em", "u", "s", "strike",
+      "blockquote", "code", "pre", "h1", "h2", "h3", "ul", "ol", "li", "a", "img",
+    ],
+    allowedAttributes: {
+      a: ["href", "target", "rel"],
+      img: ["src", "alt"],
+    },
+    allowedSchemes: ["http", "https", "mailto"],
+    allowedSchemesByTag: { img: ["http", "https", "data"] },
+  });
+}
 
 export interface ValidationResult {
   valid: boolean;

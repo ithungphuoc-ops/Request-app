@@ -4,11 +4,15 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useRequestContext } from "@/context/RequestContext";
 import TagUserInput from "@/components/shared/TagUserInput";
+import RichTextEditor from "@/components/shared/RichTextEditor";
 import ApproverStepsEditor, {
   fromApproverSteps,
   toApproverSteps,
   type DraftApproverStep,
 } from "@/components/request/ApproverStepsEditor";
+import FollowersConditionalEditor, {
+  type FollowersConditionalItem,
+} from "@/components/request/FollowersConditionalEditor";
 import RequireAdminRole from "@/components/request/RequireAdminRole";
 import {
   confirmButtonClass,
@@ -42,6 +46,10 @@ function GeneralSettingsPageInner() {
 
   const [name, setName] = useState(group?.name ?? "");
   const [description, setDescription] = useState(group?.description ?? "");
+  const [descriptionHtml, setDescriptionHtml] = useState(group?.descriptionHtml ?? "");
+  const [requiresSubmissionForm, setRequiresSubmissionForm] = useState(
+    group?.requiresSubmissionForm ?? true,
+  );
   const [category, setCategory] = useState(group?.category ?? "");
   const [approvalFlow, setApprovalFlow] = useState<ApprovalFlowType>(group?.approvalFlow ?? "concurrent");
   const [slaHours, setSlaHours] = useState(group?.slaHours != null ? String(group.slaHours) : "");
@@ -51,6 +59,12 @@ function GeneralSettingsPageInner() {
     fromApproverSteps(group?.approverSteps ?? []),
   );
   const [followers, setFollowers] = useState<TaggedUser[]>(group?.followers ?? []);
+  const [followersConditional, setFollowersConditional] = useState<FollowersConditionalItem[]>(
+    group?.followersConditional ?? [],
+  );
+  const [approverSlaEnabled, setApproverSlaEnabled] = useState(group?.approverSlaEnabled ?? false);
+  const [slaByWorkCalendar, setSlaByWorkCalendar] = useState(group?.slaByWorkCalendar ?? false);
+  const [requireDecisionNote, setRequireDecisionNote] = useState(group?.requireDecisionNote ?? {});
 
   const [errors, setErrors] = useState<{ name?: string; sla?: string; approvers?: string }>({});
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -59,6 +73,8 @@ function GeneralSettingsPageInner() {
     if (!group) return;
     setName(group.name);
     setDescription(group.description);
+    setDescriptionHtml(group.descriptionHtml ?? "");
+    setRequiresSubmissionForm(group.requiresSubmissionForm ?? true);
     setCategory(group.category);
     setApprovalFlow(group.approvalFlow);
     setSlaHours(group.slaHours != null ? String(group.slaHours) : "");
@@ -66,6 +82,10 @@ function GeneralSettingsPageInner() {
     setUsedFor(group.usedFor);
     setApproverSteps(fromApproverSteps(group.approverSteps ?? []));
     setFollowers(group.followers);
+    setFollowersConditional(group.followersConditional ?? []);
+    setApproverSlaEnabled(group.approverSlaEnabled ?? false);
+    setSlaByWorkCalendar(group.slaByWorkCalendar ?? false);
+    setRequireDecisionNote(group.requireDecisionNote ?? {});
     // Chỉ đồng bộ lại khi chuyển sang nhóm khác, tránh ghi đè trong lúc đang sửa.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group?.id]);
@@ -91,6 +111,8 @@ function GeneralSettingsPageInner() {
     updateGroup(group.id, {
       name: name.trim(),
       description,
+      descriptionHtml,
+      requiresSubmissionForm,
       category,
       approvalFlow,
       slaHours: slaValue,
@@ -98,6 +120,10 @@ function GeneralSettingsPageInner() {
       usedFor,
       approverSteps: steps,
       followers,
+      followersConditional,
+      approverSlaEnabled,
+      slaByWorkCalendar,
+      requireDecisionNote,
     });
     setSavedAt(Date.now());
   };
@@ -112,13 +138,31 @@ function GeneralSettingsPageInner() {
           {errors.name && <p className="mt-1 text-[12px] text-[var(--color-danger-red)]">{errors.name}</p>}
         </Row>
 
-        <Row label="Mô tả">
+        <Row label="Mô tả" description="Mô tả ngắn, hiển thị trong danh sách/tìm kiếm nhóm.">
           <textarea
             className={textareaClass}
             rows={3}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
           />
+        </Row>
+
+        <Row
+          label="Mô tả nhóm đề xuất"
+          description="Hiển thị nổi bật ở đầu form Gửi đề xuất — hỗ trợ định dạng, giống Base.vn."
+        >
+          <RichTextEditor value={descriptionHtml} onChange={setDescriptionHtml} />
+        </Row>
+
+        <Row label="Mẫu form đề xuất?" description="Người gửi có bắt buộc điền các trường tuỳ chỉnh của nhóm không?">
+          <select
+            className={selectClass}
+            value={requiresSubmissionForm ? "yes" : "no"}
+            onChange={(e) => setRequiresSubmissionForm(e.target.value === "yes")}
+          >
+            <option value="yes">Có</option>
+            <option value="no">Không</option>
+          </select>
         </Row>
 
         <Row label="Phân loại">
@@ -139,10 +183,56 @@ function GeneralSettingsPageInner() {
           label="Người xét duyệt"
           description="Từng bước là 1 người cố định hoặc tự động lấy trưởng đơn vị của người gửi."
         >
-          <ApproverStepsEditor value={approverSteps} onChange={setApproverSteps} />
+          <ApproverStepsEditor value={approverSteps} onChange={setApproverSteps} fields={group.fields} />
           {errors.approvers && (
             <p className="mt-1 text-[12px] text-[var(--color-danger-red)]">{errors.approvers}</p>
           )}
+        </Row>
+
+        <Row label="SLA cho từng người duyệt" description="Bật/tắt SLA riêng cho từng bước duyệt (độc lập SLA chung của đề xuất).">
+          <select
+            className={selectClass}
+            value={approverSlaEnabled ? "yes" : "no"}
+            onChange={(e) => setApproverSlaEnabled(e.target.value === "yes")}
+          >
+            <option value="no">Tắt</option>
+            <option value="yes">Kích hoạt</option>
+          </select>
+        </Row>
+
+        <Row label="SLA theo lịch làm việc" description="Bỏ giờ ngoài hành chính/ngày nghỉ khi tính hạn xử lý.">
+          <select
+            className={selectClass}
+            value={slaByWorkCalendar ? "yes" : "no"}
+            onChange={(e) => setSlaByWorkCalendar(e.target.value === "yes")}
+          >
+            <option value="no">Không</option>
+            <option value="yes">Có</option>
+          </select>
+        </Row>
+
+        <Row label="Bắt buộc nhập ý kiến phê duyệt" description="Chặn người duyệt bỏ trống ghi chú khi thực hiện hành động tương ứng.">
+          <div className="flex flex-col gap-1.5">
+            {(
+              [
+                ["approve", "Chấp thuận"],
+                ["reject", "Từ chối"],
+                ["forward", "Chuyển tiếp"],
+                ["approveAndForward", "Chấp thuận và chuyển tiếp"],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="flex items-center gap-2 text-[13px] text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={requireDecisionNote[key] ?? false}
+                  onChange={(e) =>
+                    setRequireDecisionNote({ ...requireDecisionNote, [key]: e.target.checked })
+                  }
+                />
+                {label}
+              </label>
+            ))}
+          </div>
         </Row>
 
         <Row label="Quy trình xử lý" description={approvalFlowDescriptions[approvalFlow]}>
@@ -187,6 +277,17 @@ function GeneralSettingsPageInner() {
 
         <Row label="Người theo dõi">
           <TagUserInput value={followers} onChange={setFollowers} />
+        </Row>
+
+        <Row
+          label="Người theo dõi theo điều kiện"
+          description="Chỉ thêm những người này làm người theo dõi khi đề xuất thoả điều kiện tương ứng."
+        >
+          <FollowersConditionalEditor
+            value={followersConditional}
+            onChange={setFollowersConditional}
+            fields={group.fields}
+          />
         </Row>
 
         <div className="flex items-center gap-3 pt-2">

@@ -3,11 +3,14 @@ import { canApproverAct } from "@/lib/approval-logic";
 import { adminDb } from "@/lib/firebase/admin";
 import { apiErrorResponse } from "@/lib/http";
 import { canManageGroupsAtAppScope, isWithinUsedForScope } from "@/lib/permissions";
+import { mergeFollowers } from "@/lib/server/conditions";
+import { dedupeApprovers } from "@/lib/approval-logic";
 import {
   buildInitialApprovers,
   canView,
   computeDeadline,
   findMissingRequiredFields,
+  generateGroupRequestCode,
   generateRequestCode,
   resolveApproverSteps,
   toProposalGroup,
@@ -162,6 +165,7 @@ export async function POST(request: Request) {
     let approversSnapshot: TaggedUser[];
     let followers: TaggedUser[];
     let deadlineAt: string | null;
+    let useOwnCounter = false;
 
     if (body.groupId) {
       const groupSnap = await adminDb.collection("groups").doc(body.groupId).get();
@@ -180,7 +184,7 @@ export async function POST(request: Request) {
         );
       }
 
-      if (!isDraft) {
+      if (!isDraft && group.requiresSubmissionForm !== false) {
         const missing = findMissingRequiredFields(group.fields, body.values ?? {});
         if (missing.length > 0) {
           return NextResponse.json(
@@ -199,14 +203,30 @@ export async function POST(request: Request) {
       // Nháp chưa cần xác định người duyệt thật (có thể chưa có phòng ban lúc
       // soạn nháp) — chỉ phân giải (và có thể chặn nếu thiếu trưởng đơn vị)
       // khi gửi chính thức.
+      // dedupeApprovers: nếu cùng 1 người được nhiều bước duyệt chọn (vd
+      // trùng "Quản lý trực tiếp" và "Trưởng phòng"), chỉ tính 1 lần theo
+      // vai trò xuất hiện sau cùng — xem lib/approval-logic.ts.
       approversSnapshot = isDraft
         ? []
-        : await resolveApproverSteps(group.approverSteps, session.uid);
+        : dedupeApprovers(
+            await resolveApproverSteps(group.approverSteps, session.uid, body.values ?? {}, group.fields),
+          );
       // Người gửi có thể thêm người theo dõi ngoài danh sách mặc định của
       // nhóm (giống UI Base) — client luôn khởi tạo từ group.followers rồi
-      // cho thêm, nên body.followers là danh sách CUỐI CÙNG đã gồm mặc định.
-      followers = body.followers ?? group.followers;
-      deadlineAt = isDraft ? null : computeDeadline(group.slaHours, now);
+      // cho thêm, nên body.followers là danh sách đã gồm mặc định. Hợp nhất
+      // thêm người theo dõi theo điều kiện thoả mãn (nháp thì values rỗng
+      // nên chưa thoả điều kiện nào, hợp lý vì nháp có thể còn thiếu field).
+      followers = mergeFollowers(
+        group.followers,
+        body.followers ?? group.followers,
+        group.followersConditional ?? [],
+        body.values ?? {},
+        group.fields,
+      );
+      deadlineAt = isDraft
+        ? null
+        : computeDeadline(group.slaHours, now, group.slaByWorkCalendar === true);
+      useOwnCounter = group.useOwnCounter === true;
     } else {
       // Đề xuất trực tiếp: không có mẫu, người tạo tự chọn người duyệt.
       const title = body.title?.trim();
@@ -232,7 +252,11 @@ export async function POST(request: Request) {
     const values = { ...(body.values ?? {}) };
     if (!body.groupId && body.description) values.description = body.description;
 
-    const code = isDraft ? null : await generateRequestCode();
+    const code = isDraft
+      ? null
+      : useOwnCounter && body.groupId
+        ? await generateGroupRequestCode(body.groupId)
+        : await generateRequestCode();
 
     const requestRef = adminDb.collection("requests").doc();
     const newRequest: Omit<RequestInstance, "id"> = {

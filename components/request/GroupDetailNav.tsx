@@ -9,6 +9,7 @@ const settingsNavItems = [
   { key: "print", label: "In đề xuất" },
   { key: "webhook", label: "Chuyển tiếp và Webhook" },
   { key: "permissions", label: "Tùy chỉnh về phân quyền" },
+  { key: "counter", label: "Bộ đếm" },
 ];
 
 export default function GroupDetailNav({ groupId }: { groupId: string }) {
