@@ -2,7 +2,7 @@ import "server-only";
 import type { ApproverState } from "@/lib/approval-logic";
 import { addBusinessHours } from "@/lib/business-hours";
 import { adminDb } from "@/lib/firebase/admin";
-import { filterApplicableSteps } from "@/lib/server/conditions";
+import { evaluateCondition, filterApplicableSteps } from "@/lib/server/conditions";
 import { getHpcoreDb } from "@/lib/hpcore";
 import { canManageGroupsAtAppScope, type Role } from "@/lib/permissions";
 import { nextCounterCode } from "@/lib/validation";
@@ -47,7 +47,15 @@ export function findMissingRequiredFields(
   fields: ProposalField[],
   values: Record<string, unknown>,
 ): ProposalField[] {
-  return fields.filter((f) => f.required && isEmptyValue(values?.[f.id]));
+  // Field bị ẩn (visibleWhen không thoả) không bắt buộc trả lời dù
+  // required=true — vd 4 field "Thiết bị..." chỉ 1 cái hiện tuỳ "Nhóm đề
+  // xuất" đang chọn, 3 cái còn lại ẩn thì không được chặn gửi vì thiếu.
+  return fields.filter(
+    (f) =>
+      f.required &&
+      isEmptyValue(values?.[f.id]) &&
+      (!f.visibleWhen || evaluateCondition(f.visibleWhen, values ?? {}, fields)),
+  );
 }
 
 /** Khởi tạo approvers "pending" theo đúng thứ tự của danh sách người duyệt. */

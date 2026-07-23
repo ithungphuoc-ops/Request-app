@@ -41,7 +41,7 @@ export function toApproverSteps(steps: DraftApproverStep[]): ApproverStepDef[] |
 
 /** Chỉ field có tập giá trị rời rạc mới dùng làm điều kiện được (so sánh
  * bằng/khác/chứa có ý nghĩa) — field tự do (text/số/ngày) không phù hợp. */
-const CONDITION_ELIGIBLE_TYPES = new Set(["single_choice", "multiple_choice", "department_select"]);
+export const CONDITION_ELIGIBLE_TYPES = new Set(["single_choice", "multiple_choice", "department_select"]);
 
 /**
  * Danh sách bước duyệt của 1 nhóm — mỗi bước là "Cố định" (một người cụ thể,

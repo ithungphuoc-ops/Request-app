@@ -6,6 +6,7 @@ import { Loader2, Paperclip, Plus, Trash2, X } from "lucide-react";
 import { useRequestContext } from "@/context/RequestContext";
 import { HPCORE_MEMBER_GROUPS_API } from "@/lib/constants";
 import { deserializeTableRows, toWireTableRows } from "@/lib/table-field";
+import { evaluateCondition } from "@/lib/server/conditions";
 import TagUserInput from "@/components/shared/TagUserInput";
 import {
   cancelButtonClass,
@@ -79,6 +80,13 @@ export default function SubmitRequestPage() {
 
   if (!group) return null;
 
+  // Field có `visibleWhen` chỉ hiện khi điều kiện thoả mãn — vd 4 field
+  // "Thiết bị..." chỉ hiện đúng 1 cái tuỳ "Nhóm đề xuất" đang chọn. Field ẩn
+  // KHÔNG bắt buộc trả lời dù `required=true` (đúng theo Base.vn thật).
+  const isFieldVisible = (field: ProposalField) =>
+    !field.visibleWhen || evaluateCondition(field.visibleWhen, values, group.fields);
+  const visibleFields = group.fields.filter(isFieldVisible);
+
   const setFieldValue = (fieldId: string, value: unknown) => {
     setValues((prev) => ({ ...prev, [fieldId]: value }));
   };
@@ -129,7 +137,7 @@ export default function SubmitRequestPage() {
   const handleSubmit = async () => {
     const nextErrors: Record<string, string> = {};
     if (group.requiresSubmissionForm !== false) {
-      for (const field of group.fields) {
+      for (const field of visibleFields) {
         if (field.required && isEmptyValue(values[field.id])) {
           nextErrors[field.id] = "Trường này là bắt buộc.";
         }
@@ -200,7 +208,7 @@ export default function SubmitRequestPage() {
           {group.fields.length === 0 && (
             <p className="text-[13px] text-gray-400">Nhóm này chưa có trường dữ liệu nào.</p>
           )}
-          {group.fields
+          {visibleFields
             .slice()
             .sort((a, b) => a.order - b.order)
             .map((field) => (

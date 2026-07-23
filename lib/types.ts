@@ -45,6 +45,12 @@ export interface ProposalField {
   options?: string[];
   tableColumns?: string[];
   formula?: string;
+  /** Chỉ hiển thị field này trên form Gửi đề xuất khi điều kiện thoả mãn (dựa
+   * trên giá trị field khác của CÙNG đề xuất) — ví dụ 4 field "Thiết bị..."
+   * chỉ hiện đúng 1 cái tuỳ theo "Nhóm đề xuất" đang chọn. Field bị ẩn KHÔNG
+   * bắt buộc trả lời dù `required=true`, và giá trị của field bị ẩn không
+   * được validate khi gửi (xem lib/server/requests.ts findVisibleFields). */
+  visibleWhen?: ConditionRule;
 }
 
 export type FieldDataType =
