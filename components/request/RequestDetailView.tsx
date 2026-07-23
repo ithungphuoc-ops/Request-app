@@ -10,7 +10,6 @@ import {
   Forward,
   Paperclip,
   PenLine,
-  Printer,
   RotateCcw,
   Trash2,
   Undo2,
@@ -246,16 +245,6 @@ export default function RequestDetailView({
         )}
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {request.status !== "draft" && (
-            <a
-              href={`/print/requests/${request.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-border)] px-3 text-[12px] font-medium text-gray-600 hover:bg-gray-50"
-            >
-              <Printer size={13} /> In đề xuất
-            </a>
-          )}
           {request.status !== "draft" && printTemplates.length > 0 && (
             <div ref={printMenuRef} className="relative">
               <button

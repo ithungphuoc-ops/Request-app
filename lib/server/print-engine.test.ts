@@ -264,6 +264,29 @@ describe("duplicateTableRows", () => {
     expect(rows[2]).toContain(">2<");
     expect(result).not.toContain("${column");
   });
+
+  it("vẫn nhân dòng đúng khi thẻ bị tách thành 3 run có <w:rPr> (định dạng) khác nhau — không có proofErr/bookmark xen giữa (đúng lỗi thật gặp trên file Sếp tự soạn)", () => {
+    // Mô phỏng đúng cấu trúc XML thật: "${column.chi_tiet.0}" bị Word chia
+    // thành 3 <w:r> liên tiếp, MỖI run có <w:rPr> riêng (không giống nhau),
+    // KHÔNG có proofErr/bookmark ở giữa — kiểu tách này khiến bộ gộp run cũ
+    // (chỉ xử lý <w:r><w:t> liền kề không có <w:rPr>) bỏ sót hoàn toàn.
+    const splitXml = `<w:tbl>
+      <w:tr><w:tc><w:p><w:r><w:t>Stt</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Tên</w:t></w:r></w:p></w:tc></w:tr>
+      <w:tr>
+        <w:tc><w:p><w:r w:rsidRPr="00902484"><w:rPr><w:rFonts w:eastAsia="Times New Roman"/><w:color w:val="000000"/></w:rPr><w:t>\${column.</w:t></w:r><w:r><w:rPr><w:color w:val="000000"/></w:rPr><w:t>chi_tiet.0</w:t></w:r><w:r w:rsidRPr="00902484"><w:rPr><w:rFonts w:eastAsia="Times New Roman"/></w:rPr><w:t>}</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>\${column.chi_tiet.1}</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>\${column.chi_tiet.2}</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>`;
+    const request = makeRequest({
+      fieldsSnapshot: [tableField],
+      values: { f3: [{ cells: ["laptop", "dell 5540"] }] },
+    });
+    const result = duplicateTableRows(splitXml, group, request);
+    expect(result).toContain("laptop");
+    expect(result).toContain("dell 5540");
+    expect(result).not.toContain("${column");
+  });
 });
 
 describe("renderPrintTemplate (end-to-end với file .docx thật)", () => {

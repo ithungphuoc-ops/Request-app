@@ -11,20 +11,67 @@ const TAG_REGEX = /\$\{([^}]*)\}/g;
 
 /**
  * Word thường tự tách 1 đoạn văn bản liên tục thành nhiều <w:r> (run) khác
- * nhau — do gõ ngắt quãng, tự động lưu, kiểm tra chính tả... — khiến 1 thẻ
- * ${...} bị chia làm 2-3 mảnh XML, không còn là 1 chuỗi liền mạch để regex
- * tìm thấy. Gộp lại các run liền kề (bỏ qua vài phần tử vô hại xen giữa như
- * proofErr/bookmark do Word chèn) để khôi phục thẻ về dạng liền mạch trước
- * khi quét hoặc render — đây là bước xử lý bắt buộc với file Word thật do
- * người dùng tự gõ tay, khác hẳn file test dựng sẵn.
+ * nhau — do gõ ngắt quãng, tự động lưu, kiểm tra chính tả, hoặc đơn giản là
+ * mỗi run có <w:rPr> (định dạng) hơi khác nhau — khiến 1 thẻ ${...} bị chia
+ * làm 2-3+ mảnh XML, không còn là 1 chuỗi liền mạch để regex tìm thấy. Thay
+ * vì đoán 1 kiểu tách cố định, quét TRỰC TIẾP từng <w:r>, phát hiện run nào
+ * có <w:t> chứa "${" chưa đóng "}", rồi gộp dần các run NGAY SAU đó (bất kể
+ * <w:rPr> của chúng khác nhau thế nào) cho tới khi gặp "}" — chỉ gộp ĐÚNG
+ * khoảng run chứa thẻ bị chia, giữ nguyên mọi run khác trong tài liệu (không
+ * ảnh hưởng định dạng phần văn bản còn lại).
  */
-const RUN_BOUNDARY_REGEX = new RegExp(
-  "</w:t></w:r>(?:<w:proofErr[^>]*/>|<w:bookmarkStart[^>]*/>|<w:bookmarkEnd[^>]*/>)*<w:r(?:\\s[^>]*)?><w:t(?:\\s[^>]*)?>",
-  "g",
-);
+const RUN_REGEX = /<w:r\b[^>]*>[\s\S]*?<\/w:r>/g;
+const RUN_TEXT_REGEX = /(<w:t\b[^>]*>)([\s\S]*?)(<\/w:t>)/;
+
+function hasUnclosedTag(text: string): boolean {
+  const lastOpen = text.lastIndexOf("${");
+  if (lastOpen === -1) return false;
+  return !text.slice(lastOpen).includes("}");
+}
 
 function normalizeRuns(xml: string): string {
-  return xml.replace(RUN_BOUNDARY_REGEX, "");
+  const runs: { start: number; end: number; raw: string; text: string | null }[] = [];
+  let m: RegExpExecArray | null;
+  const runRe = new RegExp(RUN_REGEX);
+  while ((m = runRe.exec(xml))) {
+    const tMatch = RUN_TEXT_REGEX.exec(m[0]);
+    runs.push({ start: m.index, end: m.index + m[0].length, raw: m[0], text: tMatch ? tMatch[2] : null });
+  }
+
+  const replacements: { start: number; end: number; xml: string }[] = [];
+  let i = 0;
+  while (i < runs.length) {
+    const run = runs[i];
+    if (run.text !== null && hasUnclosedTag(run.text)) {
+      let combined = run.text;
+      let closedAt = -1;
+      let j = i + 1;
+      while (j < runs.length && runs[j].text !== null) {
+        combined += runs[j].text;
+        if (!hasUnclosedTag(combined)) {
+          closedAt = j;
+          break;
+        }
+        j += 1;
+      }
+      if (closedAt !== -1) {
+        const merged = run.raw.replace(RUN_TEXT_REGEX, (_all, open: string, _mid: string, close: string) =>
+          `${open}${combined}${close}`,
+        );
+        replacements.push({ start: run.start, end: runs[closedAt].end, xml: merged });
+        i = closedAt + 1;
+        continue;
+      }
+    }
+    i += 1;
+  }
+
+  let result = xml;
+  for (let k = replacements.length - 1; k >= 0; k -= 1) {
+    const r = replacements[k];
+    result = result.slice(0, r.start) + r.xml + result.slice(r.end);
+  }
+  return result;
 }
 
 function stripXmlTags(xml: string): string {
