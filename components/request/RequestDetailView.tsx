@@ -4,16 +4,26 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check,
+  CheckCircle2,
   ChevronDown,
+  Clock,
   Copy,
+  Eye,
   FileDown,
   Forward,
+  History,
+  Info,
+  ListChecks,
+  MessageSquare,
+  MoreHorizontal,
   Paperclip,
   PenLine,
   RotateCcw,
   Trash2,
   Undo2,
+  Users,
   X,
+  XCircle,
 } from "lucide-react";
 import RequestStatusBadge from "@/components/request/RequestStatusBadge";
 import ForwardModal from "@/components/request/ForwardModal";
@@ -85,6 +95,8 @@ export default function RequestDetailView({
   const [printTemplates, setPrintTemplates] = useState<PrintTemplate[]>([]);
   const [printMenuOpen, setPrintMenuOpen] = useState(false);
   const printMenuRef = useRef<HTMLDivElement>(null);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   const isOwnRequest = currentUid !== null && currentUid === request.submittedBy.uid;
   const canManage = isOwnRequest || isAdmin;
@@ -108,7 +120,19 @@ export default function RequestDetailView({
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, [printMenuOpen]);
 
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+    const onClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [moreMenuOpen]);
+
   const duplicateRequest = async () => {
+    setMoreMenuOpen(false);
     setDuplicating(true);
     setActionError(null);
     try {
@@ -128,6 +152,7 @@ export default function RequestDetailView({
 
   const deleteRequest = async () => {
     if (!window.confirm("Xóa đề xuất này? Có thể khôi phục lại sau qua admin.")) return;
+    setMoreMenuOpen(false);
     setManaging(true);
     setActionError(null);
     try {
@@ -223,8 +248,8 @@ export default function RequestDetailView({
               )}
             </div>
           </div>
-          <span className="shrink-0 text-[11px] text-gray-400">
-            Mã đề xuất: <span className="font-medium text-gray-500">{request.code ?? request.id}</span>
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-[var(--color-border)] bg-gray-50 px-2.5 py-1 text-[11px] text-gray-400">
+            Mã: <span className="font-mono font-medium text-gray-700">{request.code ?? request.id}</span>
           </span>
         </div>
 
@@ -236,7 +261,7 @@ export default function RequestDetailView({
                 type="button"
                 onClick={restoreRequest}
                 disabled={managing}
-                className="flex shrink-0 items-center gap-1 rounded bg-white px-2.5 py-1 text-[12px] font-medium text-[var(--color-danger-red)] ring-1 ring-inset ring-red-200 hover:bg-red-100 disabled:opacity-60"
+                className="flex shrink-0 items-center gap-1 rounded bg-white px-2.5 py-1 text-[12px] font-medium text-[var(--color-danger-red)] ring-1 ring-inset ring-red-200 transition-colors hover:bg-red-100 disabled:opacity-60"
               >
                 <RotateCcw size={13} /> Khôi phục
               </button>
@@ -250,7 +275,7 @@ export default function RequestDetailView({
               <button
                 type="button"
                 onClick={() => setPrintMenuOpen((v) => !v)}
-                className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-border)] px-3 text-[12px] font-medium text-gray-600 hover:bg-gray-50"
+                className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-border)] px-3 text-[12px] font-medium text-gray-600 transition-colors hover:border-[var(--color-action-blue)] hover:bg-gray-50"
               >
                 <FileDown size={13} /> In theo mẫu <ChevronDown size={12} />
               </button>
@@ -276,30 +301,46 @@ export default function RequestDetailView({
           {request.status === "returned" && isOwnRequest && (
             <a
               href={editLinkFor(request)}
-              className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-action-blue)] px-3 text-[12px] font-medium text-[var(--color-action-blue)] hover:bg-blue-50"
+              className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-action-blue)] px-3 text-[12px] font-medium text-[var(--color-action-blue)] transition-colors hover:bg-blue-50"
             >
               <PenLine size={13} /> Sửa và gửi lại
             </a>
           )}
-          {currentUid && (
-            <button
-              type="button"
-              onClick={duplicateRequest}
-              disabled={duplicating}
-              className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-border)] px-3 text-[12px] font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-60"
-            >
-              <Copy size={13} /> {duplicating ? "Đang nhân bản..." : "Nhân bản"}
-            </button>
-          )}
-          {canManage && !request.deletedAt && (
-            <button
-              type="button"
-              onClick={deleteRequest}
-              disabled={managing}
-              className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-border)] px-3 text-[12px] font-medium text-gray-500 hover:border-red-200 hover:bg-red-50 hover:text-[var(--color-danger-red)] disabled:opacity-60"
-            >
-              <Trash2 size={13} /> Xóa
-            </button>
+          {(currentUid || (canManage && !request.deletedAt)) && (
+            <div ref={moreMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setMoreMenuOpen((v) => !v)}
+                disabled={duplicating || managing}
+                className="flex h-8 items-center gap-1.5 rounded border border-[var(--color-border)] px-3 text-[12px] font-medium text-gray-600 transition-colors hover:border-[var(--color-action-blue)] hover:bg-gray-50 disabled:opacity-60"
+              >
+                <MoreHorizontal size={13} /> Thêm
+              </button>
+              {moreMenuOpen && (
+                <div className="absolute left-0 top-full z-20 mt-1 w-[180px] overflow-hidden rounded border border-[var(--color-border)] bg-white shadow-lg">
+                  {currentUid && (
+                    <button
+                      type="button"
+                      onClick={duplicateRequest}
+                      disabled={duplicating}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60"
+                    >
+                      <Copy size={13} /> {duplicating ? "Đang nhân bản..." : "Nhân bản"}
+                    </button>
+                  )}
+                  {canManage && !request.deletedAt && (
+                    <button
+                      type="button"
+                      onClick={deleteRequest}
+                      disabled={managing}
+                      className="flex w-full items-center gap-2 border-t border-gray-50 px-3 py-2 text-left text-[12px] text-gray-600 transition-colors hover:bg-red-50 hover:text-[var(--color-danger-red)] disabled:opacity-60"
+                    >
+                      <Trash2 size={13} /> Xóa
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -309,7 +350,7 @@ export default function RequestDetailView({
               type="button"
               onClick={() => decide("approved").catch(() => {})}
               disabled={actingOn}
-              className="flex h-9 items-center gap-1.5 rounded bg-[var(--color-confirm-green)] px-4 text-[13px] font-medium text-white hover:brightness-95 disabled:opacity-60"
+              className="flex h-9 items-center gap-1.5 rounded bg-[var(--color-confirm-green)] px-4 text-[13px] font-medium text-white shadow-sm transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-60"
             >
               <Check size={15} /> Chấp thuận
             </button>
@@ -317,7 +358,7 @@ export default function RequestDetailView({
               type="button"
               onClick={() => setForwardOpen(true)}
               disabled={actingOn}
-              className="flex h-9 items-center gap-1.5 rounded bg-teal-500 px-4 text-[13px] font-medium text-white hover:brightness-95 disabled:opacity-60"
+              className="flex h-9 items-center gap-1.5 rounded bg-teal-500 px-4 text-[13px] font-medium text-white shadow-sm transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-60"
             >
               <Forward size={15} /> Chuyển tiếp
             </button>
@@ -325,7 +366,7 @@ export default function RequestDetailView({
               type="button"
               onClick={() => setReturnOpen(true)}
               disabled={actingOn}
-              className="flex h-9 items-center gap-1.5 rounded bg-orange-500 px-4 text-[13px] font-medium text-white hover:brightness-95 disabled:opacity-60"
+              className="flex h-9 items-center gap-1.5 rounded bg-orange-500 px-4 text-[13px] font-medium text-white shadow-sm transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-60"
             >
               <Undo2 size={15} /> Trả lại
             </button>
@@ -333,7 +374,7 @@ export default function RequestDetailView({
               type="button"
               onClick={() => setRejectOpen(true)}
               disabled={actingOn}
-              className="flex h-9 items-center gap-1.5 rounded bg-[var(--color-danger-red)] px-4 text-[13px] font-medium text-white hover:brightness-95 disabled:opacity-60"
+              className="flex h-9 items-center gap-1.5 rounded bg-[var(--color-danger-red)] px-4 text-[13px] font-medium text-white shadow-sm transition-all hover:brightness-95 active:scale-[0.98] disabled:opacity-60"
             >
               <X size={15} /> Từ chối
             </button>
@@ -344,8 +385,8 @@ export default function RequestDetailView({
         )}
 
         <div className="mt-6 rounded-[3px] border border-[var(--color-border)] bg-white p-4">
-          <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-gray-500">
-            Thông tin đề xuất
+          <h2 className="mb-3 flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wide text-gray-500">
+            <Info size={14} /> Thông tin đề xuất
           </h2>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-[13px]">
             <div>
@@ -381,10 +422,18 @@ export default function RequestDetailView({
                 <div>
                   <dt className="text-gray-400">Thời gian còn lại</dt>
                   <dd
-                    className={`font-medium ${
-                      isOverdue(request) ? "text-[var(--color-danger-red)]" : "text-gray-800"
+                    className={`flex items-center gap-1.5 font-medium tabular-nums ${
+                      isOverdue(request)
+                        ? "text-[var(--color-danger-red)]"
+                        : request.status === "pending" &&
+                            new Date(request.deadlineAt).getTime() - now < 2 * 60 * 60 * 1000
+                          ? "text-orange-500"
+                          : "text-gray-800"
                     }`}
                   >
+                    {request.status === "pending" && (
+                      <Clock size={13} className="shrink-0" />
+                    )}
                     {request.status === "pending"
                       ? formatCountdown(request.deadlineAt, now)
                       : "—"}
@@ -397,8 +446,8 @@ export default function RequestDetailView({
 
         {request.fieldsSnapshot.length > 0 && (
           <div className="mt-4 rounded-[3px] border border-[var(--color-border)] bg-white p-4">
-            <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-gray-500">
-              Thông tin khác (mẫu đăng ký đề xuất)
+            <h2 className="mb-3 flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wide text-gray-500">
+              <ListChecks size={14} /> Thông tin khác (mẫu đăng ký đề xuất)
             </h2>
             <dl className="flex flex-col gap-3 text-[13px]">
               {request.fieldsSnapshot
@@ -438,8 +487,8 @@ export default function RequestDetailView({
         )}
 
         <div className="mt-4 rounded-[3px] border border-[var(--color-border)] bg-white p-4">
-          <h2 className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-gray-500">
-            Thảo luận
+          <h2 className="mb-3 flex items-center gap-1.5 text-[13px] font-semibold uppercase tracking-wide text-gray-500">
+            <MessageSquare size={14} /> Thảo luận
           </h2>
           <CommentSection
             requestId={request.id}
@@ -452,12 +501,18 @@ export default function RequestDetailView({
 
       <div className="flex w-[300px] shrink-0 flex-col gap-4">
         <div className="rounded-[3px] border border-[var(--color-border)] bg-white p-4">
-          <h3 className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-gray-500">
-            Người xét duyệt
+          <h3 className="mb-3 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-gray-500">
+            <Users size={13} /> Người xét duyệt
           </h3>
           <div className="flex flex-col gap-2">
             {request.approversSnapshot.map((approver) => {
               const state = request.approvers.find((a) => a.id === approver.id);
+              const StatusIcon =
+                state?.decision === "approved"
+                  ? CheckCircle2
+                  : state?.decision === "rejected"
+                    ? XCircle
+                    : Clock;
               return (
                 <div key={approver.id} className="flex items-center gap-2 text-[13px]">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-action-blue)] text-[10px] font-semibold text-white">
@@ -465,7 +520,7 @@ export default function RequestDetailView({
                   </span>
                   <span className="min-w-0 flex-1 truncate text-gray-700">{approver.name}</span>
                   <span
-                    className={`shrink-0 text-[11px] ${
+                    className={`flex shrink-0 items-center gap-1 text-[11px] ${
                       state?.decision === "approved"
                         ? "text-[var(--color-confirm-green)]"
                         : state?.decision === "rejected"
@@ -473,6 +528,7 @@ export default function RequestDetailView({
                           : "text-gray-400"
                     }`}
                   >
+                    <StatusIcon size={12} className="shrink-0" />
                     {state?.decision === "approved"
                       ? "Đã duyệt"
                       : state?.decision === "rejected"
@@ -487,8 +543,8 @@ export default function RequestDetailView({
 
         {request.followers.length > 0 && (
           <div className="rounded-[3px] border border-[var(--color-border)] bg-white p-4">
-            <h3 className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-gray-500">
-              Người theo dõi
+            <h3 className="mb-3 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-gray-500">
+              <Eye size={13} /> Người theo dõi
             </h3>
             <div className="flex flex-col gap-2">
               {request.followers.map((f) => (
@@ -504,21 +560,30 @@ export default function RequestDetailView({
         )}
 
         <div className="rounded-[3px] border border-[var(--color-border)] bg-white p-4">
-          <h3 className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-gray-500">
-            Lịch sử hoạt động
+          <h3 className="mb-3 flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wide text-gray-500">
+            <History size={13} /> Lịch sử hoạt động
           </h3>
-          <div className="flex flex-col gap-3">
+          <div className="relative flex flex-col gap-4 border-l border-gray-200 pl-4">
             {request.history
               .slice()
               .reverse()
               .map((entry, index) => (
-                <div key={index} className="text-[12px]">
+                <div key={index} className="relative text-[12px]">
+                  <span
+                    className={`absolute -left-[21px] top-0.5 h-2.5 w-2.5 rounded-full border-2 border-white ring-1 ring-[var(--color-border)] ${
+                      index === 0 ? "bg-[var(--color-action-blue)]" : "bg-gray-300"
+                    }`}
+                  />
                   <p className="text-gray-700">
                     <span className="font-medium">{entry.actor}</span> {entry.action}
                     {entry.target && <> → {entry.target}</>}
                   </p>
-                  {entry.note && <p className="text-gray-400">&quot;{entry.note}&quot;</p>}
-                  <p className="text-gray-400">{new Date(entry.at).toLocaleString("vi-VN")}</p>
+                  {entry.note && (
+                    <p className="mt-0.5 italic text-gray-400">&quot;{entry.note}&quot;</p>
+                  )}
+                  <p className="mt-0.5 text-[11px] text-gray-400">
+                    {new Date(entry.at).toLocaleString("vi-VN")}
+                  </p>
                 </div>
               ))}
           </div>
